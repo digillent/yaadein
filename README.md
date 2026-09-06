@@ -4,26 +4,22 @@ Clear digital clutter and preserve the memories that matter.
 
 ## Documentation
 
-Read these before writing application code:
-
 | Doc | Purpose |
 |-----|---------|
-| [PRODUCT.md](PRODUCT.md) | Purpose, workflows, MVP scope, cloud write policy |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, Cosms/Blob design, risks, diagrams |
-| [ROADMAP.md](ROADMAP.md) | Cloud-backed desktop milestones |
-| [AGENTS.md](AGENTS.md) | Coding rules for Cursor agents |
+| [PRODUCT.md](PRODUCT.md) | Purpose, workflows, MVP scope |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, Cosms/Blob, Entra user access |
+| [ROADMAP.md](ROADMAP.md) | Milestones |
+| [AGENTS.md](AGENTS.md) | Agent coding rules |
 
 ## Locked decisions (summary)
 
-- **Cosmos is the decision store** (via Functions) — **no local SQL decision cache**
-- **Accept:** Cosms + Blob `SYNCED` → **then** move to `preserve/`
-- **Reject:** Cosms lean → move to `rejected/`
-- **Duplicate:** Cosms accepted hit → move to `duplicate/` (no new Cosms doc)
-- Manual cleanup of local `rejected/` / `duplicate/` after review (Cosms decisions kept)
-- Cosms docs: required separate fields **`contentHash`** and **`fileSize`**
-- **Duplicates:** size candidates → SHA-256 confirm (size alone never proves duplication)
-- **Tags** (`people` / `places` / `events`) extracted during local media processing
-- MVP classify/accept/reject requires **sign-in + network**
+- **Cosmos** is the decision store — **no local SQL decision cache**
+- **Solo MVP:** desktop uses **Entra user token + Azure RBAC** for Cosms/Blob — **no Functions**, **no account keys in the app**
+- **Accept:** Cosms + Blob `SYNCED` → **then** `preserve/`
+- **Reject:** Cosms lean → `rejected/`
+- **Duplicate:** local only (accepted hash already in Cosms)
+- Cosms fields: separate **`contentHash`** and **`fileSize`**; partition `/userId`
+- Classify/accept/reject require **sign-in + network**
 
 ## Media review workflow
 
@@ -41,19 +37,15 @@ flowchart TD
   cosmosReject --> moveRejected
 ```
 
-Implementation follows [ROADMAP.md](ROADMAP.md). Current code targets **Milestone 4** (Entra ID single-tenant sign-in + PKCE). Client/tenant IDs are non-secret public client settings in `apps/desktop/src/main/auth/authConfig.ts`.
+Implementation follows [ROADMAP.md](ROADMAP.md). **Next: Milestone 5 — Cosms via Entra user.** Auth (M4) is done; copy `apps/desktop/.env.example` → `.env` for client/tenant IDs.
 
 ## Development
 
-Requires Node.js 20+ and [pnpm](https://pnpm.io/).
-
 ```bash
 pnpm install
-pnpm dev      # Electron shell with working-folder + media inspect harness
-pnpm test     # unit tests
-pnpm lint     # ESLint
+pnpm dev
+pnpm test
+pnpm lint
 ```
 
-Desktop app lives in `apps/desktop`.
-
-Current code targets **Milestone 4** (Entra ID single-tenant sign-in + PKCE). Copy `apps/desktop/.env.example` to `apps/desktop/.env` and set your client/tenant IDs locally (`.env` is gitignored).
+Desktop app: `apps/desktop`.
