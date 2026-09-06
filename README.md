@@ -38,7 +38,7 @@ flowchart TD
   saveRejected --> moveRejected
 ```
 
-Implementation follows [ROADMAP.md](ROADMAP.md). Current code targets **Milestone 2** (working folder + safe moves) on top of the Milestone 1 shell.
+Implementation follows [ROADMAP.md](ROADMAP.md). Current code targets **Milestone 3** (hash, metadata, tags) on top of the working-folder shell.
 
 ## Development
 
@@ -46,7 +46,7 @@ Requires Node.js 20+ and [pnpm](https://pnpm.io/).
 
 ```bash
 pnpm install
-pnpm dev      # launch Electron + React shell (includes M2 working-folder harness)
+pnpm dev      # Electron shell with working-folder + media inspect harness
 pnpm test     # unit tests
 pnpm lint     # ESLint
 ```

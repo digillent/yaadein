@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { getShellTitle } from '@shared/appInfo'
+import type { MediaInspection } from '@shared/mediaTypes'
 
 type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
 
@@ -19,6 +20,7 @@ export default function App() {
   const [bucket, setBucket] = useState<WorkingBucket>('preserve')
   const [eventDateOverride, setEventDateOverride] = useState('')
   const [status, setStatus] = useState<string>('')
+  const [inspection, setInspection] = useState<MediaInspection | null>(null)
   const [busy, setBusy] = useState(false)
 
   async function chooseWorkingRoot(): Promise<void> {
@@ -49,7 +51,33 @@ export default function App() {
     const path = await window.yaadein.pickSourceFile()
     if (path) {
       setSourcePath(path)
+      setInspection(null)
       setStatus(`Source: ${path}`)
+    }
+  }
+
+  async function inspectSource(): Promise<void> {
+    if (!sourcePath) {
+      setStatus('Choose a source file first.')
+      return
+    }
+    setBusy(true)
+    try {
+      const result = await window.yaadein.inspectMedia({
+        sourcePath,
+        ...(eventDateOverride
+          ? { captureDateIso: eventDateInputToIso(eventDateOverride) }
+          : {}),
+      })
+      setInspection(result)
+      setStatus(
+        `Inspected ${result.originalFilename}: ${result.contentHash.slice(0, 12)}… (${result.organizeDateSource})`,
+      )
+    } catch (error) {
+      setInspection(null)
+      setStatus(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -70,6 +98,7 @@ export default function App() {
           : {}),
       })
       setSourcePath('')
+      setInspection(null)
       setStatus(
         `Moved to ${result.destinationPath} (${result.yearMonth})${
           eventDateOverride ? ' [event date override]' : ' [auto date]'
@@ -88,10 +117,10 @@ export default function App() {
       <p className="tagline">Clear digital clutter and preserve the memories that matter.</p>
 
       <section className="devPanel" aria-label="Working folder harness">
-        <h2>Working folder (Milestone 2)</h2>
+        <h2>Working folder + media inspect</h2>
         <p className="hint">
-          Default organize date is the oldest filesystem time on the file (EXIF in Milestone 3).
-          Optionally override the event date below — that wins for YYYY/MM placement.
+          Organize date: user override → EXIF → oldest filesystem time. Inspect returns SHA-256,
+          size, metadata, and tags.
         </p>
 
         <div className="row">
@@ -106,6 +135,9 @@ export default function App() {
         <div className="row">
           <button type="button" disabled={busy} onClick={() => void chooseSource()}>
             Choose source file
+          </button>
+          <button type="button" disabled={busy || !sourcePath} onClick={() => void inspectSource()}>
+            Inspect media
           </button>
           <label className="bucket">
             Bucket
@@ -145,6 +177,10 @@ export default function App() {
         <p className="status" role="status">
           {status || 'No action yet.'}
         </p>
+
+        {inspection ? (
+          <pre className="inspection">{JSON.stringify(inspection, null, 2)}</pre>
+        ) : null}
       </section>
     </main>
   )
