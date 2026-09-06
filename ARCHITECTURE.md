@@ -2,9 +2,9 @@
 
 ## Goals
 
-Yaadein keeps filesystem work, hashing, and classification **local**; keeps **cloud metadata for accepted and rejected decisions** as the durable authority for those hashes; transfers large **accepted** media **directly** to object storage; and keeps Electron, React, domain logic, and cloud providers behind clear boundaries. Duplicate classifications are local-only (no extra Cosmos row—the accepted hash already exists). Rejected cloud records are lean (`contentHash` + `fileSize` + decision); rejected bytes are never uploaded to Blob.
+Yaadein keeps filesystem work, hashing, and moves **local**; keeps **Cosmos** (via Azure Functions) as the **only decision store** for accepted and rejected hashes; transfers large **accepted** media **directly** to Blob; and moves accepted files into local `preserve/` **only after** Blob upload reaches `SYNCED`. Duplicate classifications are local-only (no extra Cosmos row). Rejected cloud records are lean; rejected bytes never go to Blob. There is **no local SQL decision cache** in MVP.
 
-This document describes the target architecture. Implementation follows [ROADMAP.md](ROADMAP.md) in desktop-first order: local Electron milestones before Azure.
+Implementation follows [ROADMAP.md](ROADMAP.md): cloud auth/API/Blob before scan/classify/accept that depend on them.
 
 ## High-level system
 
@@ -15,18 +15,18 @@ flowchart TB
     Main[Main Process / IPC]
     Domain[Domain Services]
     FS[Filesystem + Hash + Metadata]
-    Cache[SQLite Local Cache]
+    Client[CloudApiClient]
     UI --> Main
     Main --> Domain
     Domain --> FS
-    Domain --> Cache
+    Domain --> Client
   end
-  subgraph cloud [Cloud - later milestones]
+  subgraph cloud [Azure]
     API[Azure Functions]
     Cosmos[Cosmos DB Serverless]
     Blob[Azure Blob Storage]
     Entra[Entra External ID]
-    Domain -->|OAuth access token| API
+    Client -->|OAuth access token| API
     UI -.->|PKCE login| Entra
     API --> Cosmos
     API -->|short-lived scoped SAS| Domain
@@ -39,19 +39,17 @@ flowchart TB
 
 | Layer | Responsibility | Must not |
 |-------|----------------|----------|
-| **React renderer** | UI, Redux state for progress/review/settings | Call Node FS, hash files, talk to Cosmos/Blob SDKs |
+| **React renderer** | UI, Redux for progress/review/settings | Call Node FS, hash files, talk to Cosmos/Blob SDKs |
 | **Electron main / IPC** | Bridge UI ↔ domain; dialogs; app lifecycle | Embed business rules that belong in domain |
-| **Domain services** | Scan orchestration, classification, decision batching, upload/download queues | Import Azure SDKs directly; depend on React |
-| **Infrastructure** | FS moves, SHA-256, EXIF/metadata, SQLite, HTTP API client, blob transfer | Leak into Redux components |
+| **Domain services** | Scan, classification, accept/reject orchestration, upload/download queues | Import Azure SDKs directly; depend on React |
+| **Infrastructure** | FS moves, SHA-256, EXIF/metadata, HTTP API client, blob transfer | Leak into Redux components; host a SQL decision DB |
 | **Cloud API** | AuthZ, batch metadata, issue scoped blob access | Proxy large media bodies through Functions |
 
-### Suggested layout (when code exists)
-
-Desktop-first sequencing; folders appear as milestones require them:
+### Suggested layout
 
 ```text
-apps/desktop/          # Electron + React (early milestones)
-apps/api/              # Azure Functions (later milestones)
+apps/desktop/          # Electron + React
+apps/api/              # Azure Functions (from Milestone 5)
 packages/shared/       # Optional shared types only when duplication hurts
 ```
 
@@ -59,54 +57,47 @@ Use `pnpm`. Do not create `packages/shared` until a concrete shared type need ap
 
 ## Electron main process
 
-- Owns privileged Node capabilities (filesystem, SQLite path, spawning heavy work).
-- Exposes a narrow IPC surface to the renderer (start scan, get progress, submit decisions, settings).
-- Hosts or invokes domain services; may use worker threads for hashing large files.
-- Holds non-secret config (client ID, authority, API URL).
+- Owns privileged Node capabilities (filesystem, hashing, spawning heavy work).
+- Exposes a narrow IPC surface (sign-in, start scan, submit decisions, settings).
+- Hosts domain services; may use worker threads for hashing large files.
+- Holds non-secret config (client ID, authority, API URL). Tokens stay main-side where practical.
 
 ## React renderer
 
 - Presents scan progress, review queues, library/restore views, and settings.
 - Talks to main only via IPC wrappers.
-- Keeps UI state in Redux Toolkit; does not mirror the full authoritative media catalog if avoidable—prefer querying main/domain for lists.
+- Keeps UI state in Redux Toolkit; does **not** hold the authoritative decision catalog.
 
 ## Redux responsibilities
 
-**In Redux:**
+**In Redux:** UI session, scan/upload/download **progress**, auth presentation, settings form state.
 
-- UI session state: current view, selection, filters
-- Scan/upload/download **progress** snapshots for display
-- Auth session presentation (signed-in user display; tokens stay in secure main-side storage where practical)
-- Settings form state before persistence
-
-**Not in Redux as source of truth:**
-
-- Full media decision catalog (SQLite cache + cloud)
-- Retry queues (domain/persistence)
-- Raw filesystem paths as business authority beyond settings
+**Not in Redux as source of truth:** Cosms decision catalog, retry queues, raw filesystem paths as business authority beyond settings.
 
 ## Domain / services layer
 
-Small, testable modules, for example:
+Examples:
 
 - `ScanService` — walk folders, enqueue hash/metadata work
-- `HashService` — SHA-256 of full file bytes; always return/pair with `fileSize`
-- `MetadataService` — capture date, dimensions, duration, media type, **tags** (`people` / `places` / `events`)
-- `ClassificationService` — map hash lookup results → decision actions
-- `WorkingFolderService` — ensure tree; compute `YYYY/MM` destinations; safe move
-- `DecisionService` — record decisions locally; for `ACCEPTED` and `REJECTED`, batch sync to cloud when online (`DUPLICATE` local-only)
-- `CleanupService` — user-initiated deletion of local rejected/duplicate files; retain decisions
-- `UploadQueue` / `DownloadQueue` — durable pending transfers with retry (accepted media bytes only)
+- `HashService` — SHA-256 + `fileSize`
+- `MetadataService` — capture date, dimensions, duration, media type, tags
+- `ClassificationService` — map Cosms lookup results → move actions
+- `WorkingFolderService` — ensure tree; `YYYY/MM` paths; safe move
+- `DecisionService` — Cosms upsert via `CloudApiClient` (accepted full / rejected lean); never SQLite
+- `AcceptPipeline` — Cosms upsert → Blob upload → require `SYNCED` → move to `preserve/`
+- `CleanupService` — user-initiated delete under `rejected/` / `duplicate/` only; retain Cosms decisions
+- `UploadQueue` / `DownloadQueue` — accepted bytes only; retry
 
 Domain depends on interfaces, not Azure SDKs.
 
 ## Filesystem layer
 
-- Discover photos/videos under user-selected roots (extension + light type checks; refine as needed).
-- **Move-on-classify:** `rename` when same volume; cross-volume = copy + verify hash + delete source only after verify.
-- Never permanently delete as an **automatic** product action. Rejected/duplicate media remain on disk under the working folder until the user runs **explicit cleanup**.
-- `CleanupService` (domain): delete selected/all files under `rejected/` and/or `duplicate/` only; require confirmation at the UI/IPC boundary; update local cache paths/availability; **retain** hash → decision so future scans still classify correctly. Do not touch `preserve/` or Blob objects.
-- Crash safety: prefer verify-after-move; leave clear incomplete markers or temp names if a move is interrupted (implementation detail in milestone tests).
+- Discover photos/videos under user-selected roots.
+- **Safe move:** `rename` when same volume; cross-volume = copy + verify + delete source after verify.
+- **Accepted:** move into `preserve/` only after Blob `SYNCED`.
+- **Rejected / duplicate:** move after decision is confirmed (Cosms lean write / Cosms accepted hit).
+- Never permanently delete as an automatic product action.
+- `CleanupService`: delete under `rejected/` and/or `duplicate/` only after confirmation; do not touch `preserve/` or Blob.
 
 ### Working folder layout
 
@@ -117,140 +108,68 @@ Domain depends on interfaces, not Azure SDKs.
 └── rejected/YYYY/MM/
 ```
 
-Capture / event date for path:
-
-1. **User override** when the user sets an event/organize date
-2. Else EXIF / media metadata capture date
-3. Else the **oldest usable** filesystem timestamp among `mtime` (modified), `birthtime` (created, when available), `ctime`, and `atime`
-
-Filename collisions in the same month folder: disambiguate with a short content-hash prefix (or equivalent) while preserving a recognizable original name when possible.
+Capture / event date: user override → EXIF → oldest usable among `mtime` / `birthtime` / `ctime` / `atime`.
 
 ## Metadata extraction
 
-- Photos: EXIF (and similar) for capture date, width, height.
-- Videos: container/metadata libraries for duration and best-effort capture date.
-- **Tags (MVP):** during the same local processing pass, populate:
+Photos/videos: EXIF and container metadata. Tags MVP:
 
 ```text
-tags: {
-  people: string[]
-  places: string[]
-  events: string[]
-}
+tags: { people: string[], places: string[], events: string[] }
 ```
 
-  Best-effort from embedded EXIF/XMP/IPTC (and equivalents), GPS/location → places, and event/keyword fields when present. Empty arrays when unknown; never fail the scan solely for missing tags.
-- Store extracted fields (including tags) in cache/cloud records; treat missing fields as allowed.
+Best-effort from embedded metadata/GPS; empty arrays when unknown. Store rich tags on **accepted** Cosms docs.
 
 ## Hashing and file size
 
-- **Content hash (`contentHash`):** SHA-256 over entire file contents. **Primary content identity** for decisions, duplicate confirmation, and transfer verification.
-- **File size (`fileSize`):** always stored with the hash. Useful for candidate narrowing, recoverable-storage UI, incomplete/corrupt detection, avoiding unnecessary lookups, and displaying media info.
-- **Size alone never proves duplication**—different files can share a size.
-- **Perceptual hash:** deferred post-MVP.
-
-### Exact duplicate-check sequence
-
-```mermaid
-flowchart TD
-  sizeCheck[Find peers or records with same file size] --> hashCompare[Compare SHA-256]
-  hashCompare --> match{Hashes match?}
-  match -->|Yes| exactDup[Exact duplicate]
-  match -->|No| notDup[Not a duplicate]
-```
-
-1. Look for records with the same file size.
-2. Compare SHA-256 hashes.
-3. Consider files exact duplicates **only when the hashes match**.
-
-If a computed hash matches a stored `contentHash` but `fileSize` differs, treat as an integrity anomaly (do not silently merge).
+- `contentHash`: SHA-256 of full bytes — primary identity.
+- `fileSize`: always stored with the hash.
+- Size alone never proves duplication.
+- Duplicate check: same-size candidates → SHA-256 → duplicate only if hashes match.
+- Hash match with mismatched `fileSize` → integrity anomaly.
 
 ## Classification
-
-### Media review workflow
-
-High-level per-file picture (easiest mental model):
 
 ```mermaid
 flowchart TD
   selectFile[Select photo or video] --> genHash[Generate hash]
-  genHash --> knownHash{Known hash?}
+  genHash --> cosmosLookup[Batch lookup Cosmos]
+  cosmosLookup --> knownHash{Known hash?}
   knownHash -->|Previously rejected| moveRejected[Move to rejected]
   knownHash -->|Previously accepted| moveDuplicate[Move to duplicate]
   knownHash -->|Unknown| manualReview[Manual review]
-  manualReview -->|Accept| saveAccepted[Save accepted decision]
-  manualReview -->|Reject| saveRejected[Save rejected decision]
-  saveAccepted --> movePreserve[Move to preserve]
-  saveRejected --> moveRejected
+  manualReview -->|Accept| cloudAccept[Cosmos full + Blob SYNCED]
+  manualReview -->|Reject| cosmosReject[Cosmos lean REJECTED]
+  cloudAccept --> movePreserve[Then move to preserve]
+  cosmosReject --> moveRejected
 ```
 
-Notes:
-
-- Previously **accepted** hash → this copy is a **duplicate** (not a second accept).
-- Previously **rejected** hash → move to `rejected/` again (decision already known).
-- **Accept** / **Reject** persist locally and sync to Cosmos (`ACCEPTED` full, `REJECTED` lean); only accepted uploads to Blob.
-- **Duplicate** does not create a new Cosmos document.
-
 ### Batch scan flow
-
-How automatic scanning applies the same rules in batches:
 
 ```mermaid
 flowchart TD
   scan[Scan files] --> hash[Hash locally]
   hash --> meta[Extract metadata and tags]
   meta --> batch[Batch hashes]
-  batch --> lookup[Lookup decisions local then cloud]
+  batch --> lookup[Batch lookup Cosmos via API]
   lookup --> known{Known decision?}
   known -->|Previously rejected| moveRej[Move to rejected]
   known -->|Previously accepted| moveDup[Move to duplicate]
   known -->|UNKNOWN or missing| skip[Skip - leave in source]
-  moveRej --> cache[Update local cache]
-  moveDup --> cache
   skip --> review[Optional explicit review later]
-  review --> decide[User accept or reject]
-  decide --> moveDecision[Move to preserve or rejected]
-  moveDecision --> cache
+  review --> rejectPath[Reject: Cosmos lean then move]
+  review --> acceptPath[Accept: Cosmos + Blob SYNCED then move preserve]
 ```
 
 Rules:
 
-- Previously rejected / accepted recognized by hash.
-- Exact duplicates: size candidates → SHA-256 confirm (see hashing section).
-- Unknown skipped on automatic scan; user can review explicitly.
-- Accepted → `preserve`; Rejected → `rejected`; Duplicate → `duplicate`.
-- Extracted tags are stored with the local media record and shown during review when available.
-- Cloud writes: `ACCEPTED` → full Cosmos doc + Blob; `REJECTED` → lean Cosmos decision doc (no Blob); `DUPLICATE` → no Cosmos row.
+- Require signed-in + network for classify/accept/reject in MVP.
+- Cloud writes: `ACCEPTED` → full Cosms + Blob; `REJECTED` → lean Cosms; `DUPLICATE` → no Cosms row.
+- Do not move into `preserve/` before `cloudStatus === SYNCED`.
 
-## Local cache (SQLite)
+## No local SQL decision cache
 
-Purpose:
-
-- Hash → decision lookup acceleration (accepted, rejected, duplicate)
-- Cached metadata including `tags` and `fileSize`
-- Scan progress
-- Pending uploads / downloads (accepted bytes only)
-- Offline queue for accepted/rejected cloud sync
-
-Useful constraint:
-
-```text
-UNIQUE(content_hash, file_size)
-```
-
-`content_hash` remains the primary content identity; pairing size in the unique constraint adds a simple integrity check.
-
-**Not authoritative** when cloud is enabled for accepted/rejected decisions. Disposable and rebuildable from cloud (+ local filesystem inventory) where practical. Duplicate classifications are re-derived when a hash matches an accepted record.
-
-Avoid designing a complex bidirectional sync engine. Prefer:
-
-```text
-Cloud metadata (accepted + rejected)
-        ↓
-Local rebuildable cache
-```
-
-On reconnect: push queued **accepted** and **rejected** upserts (batch); push accepted uploads; pull/refresh cache from cloud; last-write-wins by `updatedAt`. Do not upsert duplicate documents to Cosmos.
+MVP does **not** use SQLite (or any local DB) as a decision store. Session progress may live in memory/Redux. Optional future local acceleration must never become authoritative over Cosms.
 
 ## Authentication
 
@@ -262,29 +181,31 @@ On reconnect: push queued **accepted** and **rejected** upserts (batch); push ac
 
 ## Cloud API (Azure Functions)
 
-Authenticated API layer responsibilities:
+- Batch lookup of decisions by content hash (accepted + rejected)
+- Batch upsert of accepted (full) and rejected (lean) documents
+- Issue short-lived scoped Blob access for **accepted** upload/download only
+- Managed Identity to Cosms and Storage
+- Reject `DUPLICATE` cloud creates and Blob grants for non-accepted media
+- Functions must not stream large media bodies
 
-- Batch lookup of decisions by content hash (**accepted** and **rejected**)
-- Batch upsert of **accepted** (full meta/tags) and **rejected** (lean decision) documents
-- Authorize and return **short-lived scoped** Blob access for **accepted** upload/download only
-- Use **Managed Identity** to Cosmos and Storage—no keys in app settings that the client can steal
-- Reject requests that attempt to create cloud records for `DUPLICATE`, or Blob grants for non-accepted media
-
-Functions **must not** stream large media bodies; they authorize and record metadata.
-
-### Preferred upload flow
+### Preferred accept / upload flow
 
 ```mermaid
 sequenceDiagram
   participant E as Electron
   participant F as Azure Function
   participant B as Blob Storage
-  E->>F: Authorize upload (hash, metadata, token)
-  F->>F: Validate user + decision ACCEPTED
+  E->>F: Upsert ACCEPTED metadata + authorize upload
+  F->>F: Validate user + write Cosmos
   F-->>E: Short-lived scoped blob access
   E->>B: Upload bytes directly
-  E->>F: Confirm complete / fail (batch-friendly)
-  F->>F: Update cloudStatus
+  E->>F: Confirm complete / fail
+  F->>F: Update cloudStatus SYNCED or FAILED
+  alt SYNCED
+    E->>E: Move file to preserve/YYYY/MM
+  else FAILED
+    E->>E: Leave source unmoved; allow retry
+  end
 ```
 
 ### Preferred download / restore flow
@@ -294,31 +215,27 @@ sequenceDiagram
   participant E as Electron
   participant F as Azure Function
   participant B as Blob Storage
-  E->>F: Authorize download (ids or year/month filter)
-  F-->>E: Short-lived scoped read access + metadata
+  E->>F: Authorize download
+  F-->>E: Scoped read access + metadata
   E->>B: Download bytes directly
   E->>E: Hash-verify; place under preserve/YYYY/MM
-  E->>F: Ack success / fail as needed
 ```
 
 ## Cosmos DB
 
-- Serverless account for **accepted** (full) and **rejected** (lean) media decision documents.
-- **Partition key:** `/userId`.
-- **Document key `id`:** equals `contentHash` for point reads (convenience only).
-- **Required separate fields on every accepted and rejected document:** `contentHash` (string) and `fileSize` (number). Do not omit `contentHash` because it matches `id`. Do not omit `fileSize`.
-- Tags and rich media fields are required for accepted documents; rejected documents are lean but still include `contentHash` and `fileSize`.
-- No documents for duplicate classifications.
+- Serverless for **accepted** (full) and **rejected** (lean) documents.
+- Partition `/userId`.
+- `id` may equal `contentHash` for point reads only.
+- Required separate fields: `contentHash`, `fileSize`.
+- No documents for duplicates.
 
 ### What is stored where
 
-| Decision    | Local SQLite + working folder | Cosmos | Blob |
-|-------------|-------------------------------|--------|------|
-| `ACCEPTED`  | Yes                           | Yes (full + tags) | Yes |
-| `REJECTED`  | Yes                           | Yes (lean) | No |
-| `DUPLICATE` | Yes (`duplicateOf` local)     | No     | No   |
-
-Duplicate detection: if the hash already exists as an **accepted** record (local and/or Cosmos), classify the new file as `DUPLICATE` locally and move it; do not write a second cloud document.
+| Decision    | Working folder | Cosms | Blob |
+|-------------|----------------|-------|------|
+| `ACCEPTED`  | `preserve/` after `SYNCED` | Yes (full + tags) | Yes |
+| `REJECTED`  | `rejected/` after Cosms write | Yes (lean) | No |
+| `DUPLICATE` | `duplicate/` | No | No |
 
 ### Canonical accepted media document
 
@@ -364,72 +281,54 @@ Duplicate detection: if the hash already exists as an **accepted** record (local
 }
 ```
 
-Video accepted example: set `mediaType` to `video/mp4`, populate `duration` (seconds), and omit unused dimension fields or set them null. Always include `tags` with arrays (possibly empty) on accepted docs. Use `captureDate` for `YYYY/MM` paths. Automatic value comes from EXIF or filesystem; **users may override** this event/organize date. Do not introduce a separate `eventDate` field unless product later splits “true capture” from “user event date” into two stored properties—until then one `captureDate` (with override) is enough.
+Conflict policy: last-write-wins by `updatedAt`.
 
 ## Blob Storage
 
-- Stores **accepted** media objects only (MVP).
-- Object keys derived from stable ids / content hash (implementation in upload milestone).
-- Access only via short-lived scoped credentials issued by Functions (or Managed Identity server-side for admin ops—not from Electron).
+- Stores **accepted** media objects only.
+- Access via short-lived scoped credentials from Functions.
 
 ## Retry handling
 
-- Uploads/downloads: retry with backoff; refresh SAS if expired.
-- Moves: verify hash after cross-volume copy before removing source.
-- Offline **accepted/rejected** decision sync: queue locally; flush in batches when online.
-- Interrupted scan: resume from durable scan progress in SQLite where practical.
+- Uploads/downloads: backoff; refresh SAS if expired.
+- Accept failure: no preserve move; retry upload.
+- Moves: verify after cross-volume copy before removing source.
+- MVP does not queue offline decisions.
 
 ## Provider abstractions (thin, MVP-only)
-
-Introduce only where they prevent Azure types from leaking into domain:
 
 | Abstraction | Role |
 |-------------|------|
 | `CloudApiClient` | Batch lookup/upsert, request upload/download grant |
 | `ObjectStorageProvider` | Put/get/verify using granted access |
-| `MediaRepository` | Optional façade over cache + API for “get decision by hash” |
 
-Initial implementations are Azure-specific. Do **not** build multi-cloud frameworks for S3/GCS until a real second provider is required.
+Do not build multi-cloud frameworks until a second provider is required.
 
 ## Separation of concerns
 
 | Concern | Owner |
 |---------|--------|
-| Decision (`ACCEPTED` / `REJECTED` in cloud; `DUPLICATE` local-only) | Product / metadata |
-| `cloudStatus` (`SYNCED` / `FAILED` / `NOT_REQUIRED` / …) | Upload pipeline (blob for accepted only) |
+| Decision | Cosms via Functions (`DUPLICATE` local-only) |
+| `cloudStatus` | Upload pipeline |
 | Local availability | Local inventory + download pipeline |
-| Media bytes transfer | Direct blob I/O (accepted only) |
-| Metadata CRUD | Functions + Cosmos (accepted full; rejected lean) |
+| Media bytes | Direct blob I/O (accepted only) |
 | Tags extraction | Local metadata processing |
-
-Valid example: Decision `ACCEPTED` + `cloudStatus` `FAILED`.
 
 ## Future mobile architecture
 
-```mermaid
-flowchart LR
-  Mobile[Mobile app] -->|OAuth PKCE| Entra
-  Mobile -->|API token| API[Azure Functions]
-  API --> Cosmos
-  API -->|SAS| Mobile
-  Mobile --> Blob
-```
-
-- Same Functions API, Cosmos schema, Blob containers, and auth tenant.
-- No Electron; local FS/cache differ by platform.
-- Desktop-first milestones must not invent Electron-only API contracts that block mobile (prefer JSON over HTTP; avoid desktop-only session assumptions in the API).
+Same Functions API, Cosms schema, Blob containers, and auth tenant. Prefer JSON over HTTP; avoid Electron-only API contracts.
 
 ## Architectural risks
 
 | Risk | Mitigation |
 |------|------------|
-| Crash mid-move / cross-volume move | Copy → hash verify → delete source; tests for incomplete moves |
-| Hashing blocks UI | Main process / worker threads; progress events |
-| SAS / token expiry mid-transfer | Refresh grant; retry queue |
-| Offline divergence | Queues + cloud authority + last-write-wins; no CRDT |
-| Path collisions in `YYYY/MM` | Hash-prefix disambiguation |
-| Users expect original paths restored | Product clear: restore rebuilds `preserve/` only |
-| Permanent deletion of preserve or auto-delete on scan | Only user-confirmed cleanup of rejected/duplicate locals |
+| Move to preserve before upload completes | Gate move on `SYNCED`; tests for ordering |
+| Crash mid-move / cross-volume | Copy → verify → delete source |
+| Hashing blocks UI | Main/workers; progress events |
+| SAS expiry mid-transfer | Refresh grant; retry queue |
+| No offline decisions | Product: require online for classify/accept |
+| Path collisions | Hash-prefix disambiguation |
+| Expect original paths restored | Product: restore rebuilds `preserve/` only |
 
 ## Related documents
 

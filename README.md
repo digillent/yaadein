@@ -9,36 +9,41 @@ Read these before writing application code:
 | Doc | Purpose |
 |-----|---------|
 | [PRODUCT.md](PRODUCT.md) | Purpose, workflows, MVP scope, cloud write policy |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, Cosmos/Blob design, risks, diagrams |
-| [ROADMAP.md](ROADMAP.md) | Desktop-first milestones |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, Cosms/Blob design, risks, diagrams |
+| [ROADMAP.md](ROADMAP.md) | Cloud-backed desktop milestones |
 | [AGENTS.md](AGENTS.md) | Coding rules for Cursor agents |
 
 ## Locked decisions (summary)
 
-- **Move-on-classify** into `preserve` / `rejected` / `duplicate` under `YYYY/MM` (never auto-delete)
-- **Manual cleanup** of local `rejected/` and `duplicate/` after review (decisions kept by hash)
-- **Desktop-first**: local app before Azure
-- Cosmos: required separate fields **`contentHash`** and **`fileSize`** (`id` may equal hash for reads, not a substitute)
+- **Cosmos is the decision store** (via Functions) — **no local SQL decision cache**
+- **Accept:** Cosms + Blob `SYNCED` → **then** move to `preserve/`
+- **Reject:** Cosms lean → move to `rejected/`
+- **Duplicate:** Cosms accepted hit → move to `duplicate/` (no new Cosms doc)
+- Manual cleanup of local `rejected/` / `duplicate/` after review (Cosms decisions kept)
+- Cosms docs: required separate fields **`contentHash`** and **`fileSize`**
 - **Duplicates:** size candidates → SHA-256 confirm (size alone never proves duplication)
-- **Cloud**: `ACCEPTED` → full Cosmos + Blob; `REJECTED` → lean Cosmos (no Blob); `DUPLICATE` → local only
-- **Tags** (`people` / `places` / `events`) extracted during local media processing (MVP)
+- **Tags** (`people` / `places` / `events`) extracted during local media processing
+- MVP classify/accept/reject requires **sign-in + network**
 
 ## Media review workflow
 
 ```mermaid
 flowchart TD
   selectFile[Select photo or video] --> genHash[Generate hash]
-  genHash --> knownHash{Known hash?}
+  genHash --> cosmosLookup[Batch lookup Cosmos]
+  cosmosLookup --> knownHash{Known hash?}
   knownHash -->|Previously rejected| moveRejected[Move to rejected]
   knownHash -->|Previously accepted| moveDuplicate[Move to duplicate]
   knownHash -->|Unknown| manualReview[Manual review]
-  manualReview -->|Accept| saveAccepted[Save accepted decision]
-  manualReview -->|Reject| saveRejected[Save rejected decision]
-  saveAccepted --> movePreserve[Move to preserve]
-  saveRejected --> moveRejected
+  manualReview -->|Accept| cloudAccept[Cosmos full + Blob SYNCED]
+  manualReview -->|Reject| cosmosReject[Cosmos lean REJECTED]
+  cloudAccept --> movePreserve[Then move to preserve]
+  cosmosReject --> moveRejected
 ```
 
-Implementation follows [ROADMAP.md](ROADMAP.md). Current code targets **Milestone 3** (hash, metadata, tags) on top of the working-folder shell.
+Implementation follows [ROADMAP.md](ROADMAP.md). Milestones 1–3 are done (shell, working folder, hash/metadata/tags). **Next: Milestone 4 — Auth.**
+
+The earlier local-SQLite / move-before-upload plan is **superseded** (see ROADMAP). Close or ignore the `cursor/m4-sqlite-cache` branch.
 
 ## Development
 
