@@ -59,7 +59,8 @@ describe('authConfig', () => {
       expect(config.authority).toBe(
         'https://login.microsoftonline.com/22222222-2222-2222-2222-222222222222',
       )
-      expect(config.scopes).toContain('User.Read')
+      expect(config.scopes).toContain('https://cosmos.azure.com/user_impersonation')
+      expect(config.graphScopes).toContain('User.Read')
     } finally {
       process.env.YAADEIN_ENTRA_CLIENT_ID = previousClient
       process.env.YAADEIN_ENTRA_TENANT_ID = previousTenant
@@ -72,7 +73,9 @@ describe('authConfig', () => {
         clientId: '',
         tenantId: 't',
         authority: 'https://login.microsoftonline.com/t',
-        scopes: ['User.Read'],
+        scopes: ['https://cosmos.azure.com/user_impersonation'],
+        graphScopes: ['User.Read'],
+        cosmosScope: 'https://cosmos.azure.com/user_impersonation',
         redirectUri: 'http://localhost',
       }),
     ).toThrow(/required/)

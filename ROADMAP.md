@@ -67,22 +67,9 @@ flowchart TD
 
 **Goal:** Desktop batch-looks-up and upserts **accepted** (full) and **rejected** (lean) documents in Cosms using the **signed-in user’s** Azure AD token.
 
-**In scope:**
+**Status:** Done.
 
-- Cosms NoSQL account + database `yaadein` + container `media` (partition `/userId`) — may already exist
-- Azure RBAC: signed-in user (or security group) has Cosms **data-plane** access (e.g. Built-in Data Contributor)
-- Desktop Cosms adapter (SDK) behind a small repository/API boundary; acquire token for Cosms resource scope
-- Batch lookup by hashes; batch upsert accepted (full meta + tags) and rejected (lean)
-- Required fields `contentHash` + `fileSize`; `id` may equal `contentHash`
-- Reject writing `DUPLICATE` documents
-- Dev harness: after sign-in, upsert/lookup a sample decision doc
-- Expand MSAL scopes as needed for Cosms (keep Graph optional)
-
-**Out of scope:** Azure Functions; Blob upload; scan orchestration; account keys in the app or encrypted key files.
-
-**Expected tests:** Repository/mapper unit tests with mocked Cosms client; duplicate upsert rejected; partition key = user oid.
-
-**Working state:** Signed-in user can persist and read accepted/rejected decisions in Cosms from the desktop app.
+**In scope (delivered):** Cosms adapter + decision repository (batch lookup / upsert accepted+rejected); reject DUPLICATE docs; MSAL Cosms scope; partition `userId` = Entra oid; harness upsert+lookup; mocked unit tests. No Functions / no account keys.
 
 ---
 

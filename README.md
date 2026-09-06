@@ -37,7 +37,7 @@ flowchart TD
   cosmosReject --> moveRejected
 ```
 
-Implementation follows [ROADMAP.md](ROADMAP.md). **Next: Milestone 5 — Cosms via Entra user.** Auth (M4) is done; copy `apps/desktop/.env.example` → `.env` for client/tenant IDs.
+Implementation follows [ROADMAP.md](ROADMAP.md). **Next: Milestone 6 — Blob via Entra user.** Set `apps/desktop/.env` from `.env.example` (Entra IDs + Cosms endpoint).
 
 ## Development
 

@@ -4,6 +4,7 @@ import { loadDesktopEnvFile } from './auth/loadEnv'
 import { registerWorkingFolderIpc } from './ipc/workingFolderIpc'
 import { registerMediaIpc } from './ipc/mediaIpc'
 import { registerAuthIpc } from './ipc/authIpc'
+import { registerCosmosIpc } from './ipc/cosmosIpc'
 
 loadDesktopEnvFile()
 
@@ -39,6 +40,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   registerAuthIpc()
+  registerCosmosIpc()
   registerWorkingFolderIpc()
   registerMediaIpc()
   createWindow()

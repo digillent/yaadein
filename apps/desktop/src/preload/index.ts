@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { appName } from '../shared/appInfo'
 import type { MediaInspection, MediaTags } from '../shared/mediaTypes'
 import type { AuthSession, GraphMeProfile } from '../shared/authTypes'
+import type { CosmosHarnessResult } from '../shared/decisionTypes'
 
 export type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
 
@@ -24,7 +25,7 @@ export type MoveMediaResult = {
   yearMonth: string
 }
 
-export type { MediaInspection, MediaTags, AuthSession, GraphMeProfile }
+export type { MediaInspection, MediaTags, AuthSession, GraphMeProfile, CosmosHarnessResult }
 
 const api = {
   appName,
@@ -43,6 +44,8 @@ const api = {
   signIn: (): Promise<AuthSession> => ipcRenderer.invoke('auth:signIn'),
   signOut: (): Promise<AuthSession> => ipcRenderer.invoke('auth:signOut'),
   fetchMe: (): Promise<GraphMeProfile> => ipcRenderer.invoke('auth:fetchMe'),
+  cosmosHarnessRoundTrip: (): Promise<CosmosHarnessResult> =>
+    ipcRenderer.invoke('cosmos:harnessRoundTrip'),
 }
 
 contextBridge.exposeInMainWorld('yaadein', api)

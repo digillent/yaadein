@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getShellTitle } from '@shared/appInfo'
 import type { MediaInspection } from '@shared/mediaTypes'
 import type { AuthSession, GraphMeProfile } from '@shared/authTypes'
+import type { CosmosHarnessResult } from '@shared/decisionTypes'
 
 type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
 
@@ -25,6 +26,7 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [session, setSession] = useState<AuthSession | null>(null)
   const [meProfile, setMeProfile] = useState<GraphMeProfile | null>(null)
+  const [cosmosHarness, setCosmosHarness] = useState<CosmosHarnessResult | null>(null)
 
   useEffect(() => {
     void window.yaadein.getAuthSession().then(setSession).catch(() => {
@@ -33,6 +35,7 @@ export default function App() {
         accountName: null,
         username: null,
         homeAccountId: null,
+        userId: null,
       })
     })
   }, [])
@@ -131,6 +134,7 @@ export default function App() {
       const next = await window.yaadein.signIn()
       setSession(next)
       setMeProfile(null)
+      setCosmosHarness(null)
       setStatus(next.signedIn ? `Signed in as ${next.username ?? next.accountName}` : 'Signed out')
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error))
@@ -145,6 +149,7 @@ export default function App() {
       const next = await window.yaadein.signOut()
       setSession(next)
       setMeProfile(null)
+      setCosmosHarness(null)
       setStatus('Signed out')
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error))
@@ -167,6 +172,24 @@ export default function App() {
     }
   }
 
+  async function runCosmosHarness(): Promise<void> {
+    setBusy(true)
+    try {
+      const result = await window.yaadein.cosmosHarnessRoundTrip()
+      setCosmosHarness(result)
+      setStatus(
+        result.lookedUp
+          ? `Cosmos OK: upserted+looked up ${result.upserted.contentHash.slice(0, 12)}…`
+          : `Cosmos upsert OK but lookup missed ${result.upserted.contentHash.slice(0, 12)}…`,
+      )
+    } catch (error) {
+      setCosmosHarness(null)
+      setStatus(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <main className="shell">
       <h1>{title}</h1>
@@ -175,8 +198,8 @@ export default function App() {
       <section className="devPanel" aria-label="Auth harness">
         <h2>Sign-in (Entra + PKCE)</h2>
         <p className="hint">
-          Single-tenant public client. Sign-in opens the system browser; tokens stay in the main
-          process. Call Graph /me to verify the bearer token helper.
+          Sign-in requests the Cosms delegated scope. Tokens stay in the main process. Graph /me
+          uses a separate Graph token; Cosms harness upserts/looks up a lean REJECTED sample.
         </p>
         <div className="row">
           <button type="button" disabled={busy} onClick={() => void signIn()}>
@@ -188,13 +211,25 @@ export default function App() {
           <button type="button" disabled={busy || !session?.signedIn} onClick={() => void callMe()}>
             Call Graph /me
           </button>
+          <button
+            type="button"
+            disabled={busy || !session?.signedIn}
+            onClick={() => void runCosmosHarness()}
+          >
+            Cosms upsert + lookup
+          </button>
         </div>
         <p className="status" role="status">
           {session?.signedIn
-            ? `Signed in: ${session.username ?? session.accountName ?? 'account'}`
+            ? `Signed in: ${session.username ?? session.accountName ?? 'account'}${
+                session.userId ? ` (oid ${session.userId.slice(0, 8)}…)` : ''
+              }`
             : 'Not signed in'}
         </p>
         {meProfile ? <pre className="inspection">{JSON.stringify(meProfile, null, 2)}</pre> : null}
+        {cosmosHarness ? (
+          <pre className="inspection">{JSON.stringify(cosmosHarness, null, 2)}</pre>
+        ) : null}
       </section>
 
       <section className="devPanel" aria-label="Working folder harness">

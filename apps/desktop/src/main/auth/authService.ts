@@ -32,6 +32,25 @@ function createFileCachePlugin(cachePath: string): ICachePlugin {
   }
 }
 
+function toSession(account: AccountInfo | null): AuthSession {
+  if (!account) {
+    return {
+      signedIn: false,
+      accountName: null,
+      username: null,
+      homeAccountId: null,
+      userId: null,
+    }
+  }
+  return {
+    signedIn: true,
+    accountName: account.name ?? null,
+    username: account.username ?? null,
+    homeAccountId: account.homeAccountId,
+    userId: account.localAccountId,
+  }
+}
+
 export class AuthService {
   private readonly config: AuthPublicConfig
   private readonly pca: PublicClientApplication
@@ -57,20 +76,16 @@ export class AuthService {
   }
 
   getSession(): AuthSession {
-    if (!this.account) {
-      return {
-        signedIn: false,
-        accountName: null,
-        username: null,
-        homeAccountId: null,
-      }
+    return toSession(this.account)
+  }
+
+  /** Entra object id used as Cosms partition key `/userId`. */
+  requireUserId(): string {
+    const userId = this.account?.localAccountId?.trim()
+    if (!userId) {
+      throw new Error('Sign in required: Cosms partition userId (Entra oid) is unavailable.')
     }
-    return {
-      signedIn: true,
-      accountName: this.account.name ?? null,
-      username: this.account.username ?? null,
-      homeAccountId: this.account.homeAccountId,
-    }
+    return userId
   }
 
   async signInInteractive(): Promise<AuthSession> {
@@ -97,22 +112,16 @@ export class AuthService {
   }
 
   async getAccessToken(): Promise<string> {
-    const result = await this.acquireToken()
+    const result = await this.acquireTokenForScopes(this.config.scopes)
     return result.accessToken
   }
 
-  /** Calls Microsoft Graph `/me` with the signed-in access token (M4 stub). */
-  async fetchMeProfile(): Promise<GraphMeProfile> {
-    const token = await this.getAccessToken()
-    return fetchJsonWithBearer<GraphMeProfile>(GRAPH_ME_URL, token)
-  }
-
-  private async acquireToken(): Promise<AuthenticationResult> {
+  async acquireTokenForScopes(scopes: string[]): Promise<AuthenticationResult> {
     if (this.account) {
       try {
         return await this.pca.acquireTokenSilent({
           account: this.account,
-          scopes: this.config.scopes,
+          scopes,
         })
       } catch {
         // Fall through to interactive.
@@ -120,12 +129,18 @@ export class AuthService {
     }
 
     const interactive = await this.pca.acquireTokenInteractive({
-      scopes: this.config.scopes,
+      scopes,
       openBrowser: async (url) => {
         await shell.openExternal(url)
       },
     })
     this.account = interactive.account
     return interactive
+  }
+
+  /** Calls Microsoft Graph `/me` with a Graph-scoped access token (M4 harness). */
+  async fetchMeProfile(): Promise<GraphMeProfile> {
+    const result = await this.acquireTokenForScopes(this.config.graphScopes)
+    return fetchJsonWithBearer<GraphMeProfile>(GRAPH_ME_URL, result.accessToken)
   }
 }
