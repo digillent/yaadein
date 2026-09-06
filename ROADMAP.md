@@ -80,7 +80,7 @@ flowchart TD
 - SHA-256 of full file bytes
 - Record `fileSize` with every hash result
 - Photo EXIF capture date where available
-- Fallback: `mtime` then `ctime`
+- Fallback: oldest usable filesystem timestamp among `mtime`, `birthtime`, `ctime`, and `atime`
 - Basic media type; best-effort width/height/duration where easy
 - Tag extraction into `tags.people`, `tags.places`, `tags.events` from embedded metadata / GPS / related fields (empty arrays when unknown)
 

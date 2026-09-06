@@ -1,8 +1,4 @@
-import { appName } from '../shared/appInfo'
-
-export interface YaadeinApi {
-  appName: typeof appName
-}
+import type { YaadeinApi } from './index'
 
 declare global {
   interface Window {

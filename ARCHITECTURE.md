@@ -117,11 +117,11 @@ Domain depends on interfaces, not Azure SDKs.
 └── rejected/YYYY/MM/
 ```
 
-Capture date for path:
+Capture / event date for path:
 
-1. EXIF / media metadata capture date
-2. else filesystem `mtime`
-3. else filesystem `ctime`
+1. **User override** when the user sets an event/organize date
+2. Else EXIF / media metadata capture date
+3. Else the **oldest usable** filesystem timestamp among `mtime` (modified), `birthtime` (created, when available), `ctime`, and `atime`
 
 Filename collisions in the same month folder: disambiguate with a short content-hash prefix (or equivalent) while preserving a recognizable original name when possible.
 
@@ -364,7 +364,7 @@ Duplicate detection: if the hash already exists as an **accepted** record (local
 }
 ```
 
-Video accepted example: set `mediaType` to `video/mp4`, populate `duration` (seconds), and omit unused dimension fields or set them null. Always include `tags` with arrays (possibly empty) on accepted docs. Use `captureDate` for `YYYY/MM` paths—not a separate `eventDate` field.
+Video accepted example: set `mediaType` to `video/mp4`, populate `duration` (seconds), and omit unused dimension fields or set them null. Always include `tags` with arrays (possibly empty) on accepted docs. Use `captureDate` for `YYYY/MM` paths. Automatic value comes from EXIF or filesystem; **users may override** this event/organize date. Do not introduce a separate `eventDate` field unless product later splits “true capture” from “user event date” into two stored properties—until then one `captureDate` (with override) is enough.
 
 ## Blob Storage
 

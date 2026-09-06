@@ -38,7 +38,7 @@ flowchart TD
   saveRejected --> moveRejected
 ```
 
-Implementation follows [ROADMAP.md](ROADMAP.md). Current code: **Milestone 1** tooling skeleton.
+Implementation follows [ROADMAP.md](ROADMAP.md). Current code targets **Milestone 2** (working folder + safe moves) on top of the Milestone 1 shell.
 
 ## Development
 
@@ -46,7 +46,7 @@ Requires Node.js 20+ and [pnpm](https://pnpm.io/).
 
 ```bash
 pnpm install
-pnpm dev      # launch Electron + React shell
+pnpm dev      # launch Electron + React shell (includes M2 working-folder harness)
 pnpm test     # unit tests
 pnpm lint     # ESLint
 ```

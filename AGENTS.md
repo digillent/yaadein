@@ -42,7 +42,7 @@ Do not optimize prematurely. Do not create abstractions merely because they migh
 - **Hash:** SHA-256 `contentHash` is primary content identity; always store `fileSize` with it.
 - **Duplicate check:** same file size → compare SHA-256 → exact duplicate only when hashes match; size alone never proves duplication.
 - **Local DB:** prefer `UNIQUE(content_hash, file_size)`; treat hash+size mismatch as integrity anomaly.
-- **Capture date:** EXIF/media metadata → `mtime` → `ctime`.
+- **Capture / event date:** user override when set; else EXIF/media metadata; else the oldest usable filesystem timestamp (`mtime` / `birthtime` / `ctime` / `atime`). Users must be able to override the organize/event date.
 - **Tags (MVP):** extract `tags.people` / `tags.places` / `tags.events` during local media processing; persist locally; sync rich tags to Cosmos **for ACCEPTED**. Rejected Cosmos docs are lean. Do not build ML face-clustering unless the current milestone explicitly requires it.
 - **Cosmos shape:** partition `/userId`; required separate fields `contentHash` and `fileSize` on every media document; document `id` may equal `contentHash` for point reads but is not a substitute for those fields; keep `decision` and `cloudStatus` separate.
 - **Cloud write policy:** `ACCEPTED` → Cosmos (full, including `contentHash` + `fileSize`) + Blob; `REJECTED` → Cosmos (lean with `contentHash` + `fileSize` + decision, no Blob); `DUPLICATE` → local only (accepted hash already in Cosmos).

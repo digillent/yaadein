@@ -108,7 +108,13 @@ YYYY/MM
 
 Example: `preserve/2026/09/`.
 
-**Capture date preference:** EXIF or equivalent media metadata first; if unavailable, fall back to filesystem `mtime`, then `ctime`.
+**Capture / event date for `YYYY/MM`:**
+
+1. **User override** when provided (always wins for organization path)
+2. Else EXIF or equivalent media metadata
+3. Else the **oldest usable** filesystem timestamp among modified (`mtime`), created (`birthtime` when available), `ctime`, and `atime`
+
+Users must be able to override the event/organize date for a media item (during review/move and later editing). The override drives `preserve|duplicate|rejected/YYYY/MM` placement without changing that EXIF remains the preferred automatic source when present.
 
 Path collisions under the same `YYYY/MM` (same original filename) are disambiguated (for example with a content-hash prefix). Exact policy is defined in architecture.
 
