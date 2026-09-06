@@ -2,7 +2,7 @@
 
 ## Goals
 
-Yaadein keeps filesystem work, hashing, and classification **local**; keeps **cloud metadata for accepted and rejected decisions** as the durable authority for those hashes; transfers large **accepted** media **directly** to object storage; and keeps Electron, React, domain logic, and cloud providers behind clear boundaries. Duplicate classifications are local-only (no extra Cosmos row—the accepted hash already exists). Rejected cloud records are lean (hash + decision); rejected bytes are never uploaded to Blob.
+Yaadein keeps filesystem work, hashing, and classification **local**; keeps **cloud metadata for accepted and rejected decisions** as the durable authority for those hashes; transfers large **accepted** media **directly** to object storage; and keeps Electron, React, domain logic, and cloud providers behind clear boundaries. Duplicate classifications are local-only (no extra Cosmos row—the accepted hash already exists). Rejected cloud records are lean (`contentHash` + `fileSize` + decision); rejected bytes are never uploaded to Blob.
 
 This document describes the target architecture. Implementation follows [ROADMAP.md](ROADMAP.md) in desktop-first order: local Electron milestones before Azure.
 
@@ -90,11 +90,12 @@ Use `pnpm`. Do not create `packages/shared` until a concrete shared type need ap
 Small, testable modules, for example:
 
 - `ScanService` — walk folders, enqueue hash/metadata work
-- `HashService` — SHA-256 of full file bytes
+- `HashService` — SHA-256 of full file bytes; always return/pair with `fileSize`
 - `MetadataService` — capture date, dimensions, duration, media type, **tags** (`people` / `places` / `events`)
 - `ClassificationService` — map hash lookup results → decision actions
 - `WorkingFolderService` — ensure tree; compute `YYYY/MM` destinations; safe move
 - `DecisionService` — record decisions locally; for `ACCEPTED` and `REJECTED`, batch sync to cloud when online (`DUPLICATE` local-only)
+- `CleanupService` — user-initiated deletion of local rejected/duplicate files; retain decisions
 - `UploadQueue` / `DownloadQueue` — durable pending transfers with retry (accepted media bytes only)
 
 Domain depends on interfaces, not Azure SDKs.
@@ -103,7 +104,8 @@ Domain depends on interfaces, not Azure SDKs.
 
 - Discover photos/videos under user-selected roots (extension + light type checks; refine as needed).
 - **Move-on-classify:** `rename` when same volume; cross-volume = copy + verify hash + delete source only after verify.
-- Never permanently delete as a product action; rejected/duplicate media remain on disk under the working folder.
+- Never permanently delete as an **automatic** product action. Rejected/duplicate media remain on disk under the working folder until the user runs **explicit cleanup**.
+- `CleanupService` (domain): delete selected/all files under `rejected/` and/or `duplicate/` only; require confirmation at the UI/IPC boundary; update local cache paths/availability; **retain** hash → decision so future scans still classify correctly. Do not touch `preserve/` or Blob objects.
 - Crash safety: prefer verify-after-move; leave clear incomplete markers or temp names if a move is interrupted (implementation detail in milestone tests).
 
 ### Working folder layout
@@ -140,12 +142,28 @@ tags: {
   Best-effort from embedded EXIF/XMP/IPTC (and equivalents), GPS/location → places, and event/keyword fields when present. Empty arrays when unknown; never fail the scan solely for missing tags.
 - Store extracted fields (including tags) in cache/cloud records; treat missing fields as allowed.
 
-## Hashing
+## Hashing and file size
 
-- **Content hash:** SHA-256 over entire file contents.
-- Identity for decisions and duplicate detection in MVP.
-- Used to verify uploads/downloads.
+- **Content hash (`contentHash`):** SHA-256 over entire file contents. **Primary content identity** for decisions, duplicate confirmation, and transfer verification.
+- **File size (`fileSize`):** always stored with the hash. Useful for candidate narrowing, recoverable-storage UI, incomplete/corrupt detection, avoiding unnecessary lookups, and displaying media info.
+- **Size alone never proves duplication**—different files can share a size.
 - **Perceptual hash:** deferred post-MVP.
+
+### Exact duplicate-check sequence
+
+```mermaid
+flowchart TD
+  sizeCheck[Find peers or records with same file size] --> hashCompare[Compare SHA-256]
+  hashCompare --> match{Hashes match?}
+  match -->|Yes| exactDup[Exact duplicate]
+  match -->|No| notDup[Not a duplicate]
+```
+
+1. Look for records with the same file size.
+2. Compare SHA-256 hashes.
+3. Consider files exact duplicates **only when the hashes match**.
+
+If a computed hash matches a stored `contentHash` but `fileSize` differs, treat as an integrity anomaly (do not silently merge).
 
 ## Classification
 
@@ -198,7 +216,7 @@ flowchart TD
 Rules:
 
 - Previously rejected / accepted recognized by hash.
-- Exact duplicates recognized by content hash (see duplicate milestone).
+- Exact duplicates: size candidates → SHA-256 confirm (see hashing section).
 - Unknown skipped on automatic scan; user can review explicitly.
 - Accepted → `preserve`; Rejected → `rejected`; Duplicate → `duplicate`.
 - Extracted tags are stored with the local media record and shown during review when available.
@@ -209,10 +227,18 @@ Rules:
 Purpose:
 
 - Hash → decision lookup acceleration (accepted, rejected, duplicate)
-- Cached metadata including `tags`
+- Cached metadata including `tags` and `fileSize`
 - Scan progress
 - Pending uploads / downloads (accepted bytes only)
 - Offline queue for accepted/rejected cloud sync
+
+Useful constraint:
+
+```text
+UNIQUE(content_hash, file_size)
+```
+
+`content_hash` remains the primary content identity; pairing size in the unique constraint adds a simple integrity check.
 
 **Not authoritative** when cloud is enabled for accepted/rejected decisions. Disposable and rebuildable from cloud (+ local filesystem inventory) where practical. Duplicate classifications are re-derived when a hash matches an accepted record.
 
@@ -279,8 +305,9 @@ sequenceDiagram
 
 - Serverless account for **accepted** (full) and **rejected** (lean) media decision documents.
 - **Partition key:** `/userId`.
-- **Document `id`:** SHA-256 content hash. The id **is** the content hash—do not duplicate it as a separate `contentHash` property.
-- Tags and rich media fields are required for accepted documents; rejected documents are decision markers.
+- **Document key `id`:** equals `contentHash` for point reads (convenience only).
+- **Required separate fields on every accepted and rejected document:** `contentHash` (string) and `fileSize` (number). Do not omit `contentHash` because it matches `id`. Do not omit `fileSize`.
+- Tags and rich media fields are required for accepted documents; rejected documents are lean but still include `contentHash` and `fileSize`.
 - No documents for duplicate classifications.
 
 ### What is stored where
@@ -299,12 +326,13 @@ Duplicate detection: if the hash already exists as an **accepted** record (local
 {
   "id": "<sha256>",
   "userId": "<entra-oid>",
+  "contentHash": "<sha256>",
+  "fileSize": 4821934,
   "decision": "ACCEPTED",
   "decisionTimestamp": "2026-09-05T22:00:00.000Z",
   "captureDate": "2026-07-18T15:30:00.000Z",
   "mediaType": "image/jpeg",
   "originalFilename": "IMG_1234.jpg",
-  "fileSize": 4821934,
   "width": 4032,
   "height": 3024,
   "duration": null,
@@ -326,6 +354,8 @@ Duplicate detection: if the hash already exists as an **accepted** record (local
 {
   "id": "<sha256>",
   "userId": "<entra-oid>",
+  "contentHash": "<sha256>",
+  "fileSize": 4821934,
   "decision": "REJECTED",
   "decisionTimestamp": "2026-09-05T22:00:00.000Z",
   "cloudStatus": "NOT_REQUIRED",
@@ -399,7 +429,7 @@ flowchart LR
 | Offline divergence | Queues + cloud authority + last-write-wins; no CRDT |
 | Path collisions in `YYYY/MM` | Hash-prefix disambiguation |
 | Users expect original paths restored | Product clear: restore rebuilds `preserve/` only |
-| Premature abstraction | Azure-first adapters; add packages only when needed |
+| Permanent deletion of preserve or auto-delete on scan | Only user-confirmed cleanup of rejected/duplicate locals |
 
 ## Related documents
 

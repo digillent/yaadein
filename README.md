@@ -16,8 +16,10 @@ Read these before writing application code:
 ## Locked decisions (summary)
 
 - **Move-on-classify** into `preserve` / `rejected` / `duplicate` under `YYYY/MM` (never auto-delete)
+- **Manual cleanup** of local `rejected/` and `duplicate/` after review (decisions kept by hash)
 - **Desktop-first**: local app before Azure
-- Cosmos **`id` = SHA-256** content hash
+- Cosmos: required separate fields **`contentHash`** and **`fileSize`** (`id` may equal hash for reads, not a substitute)
+- **Duplicates:** size candidates → SHA-256 confirm (size alone never proves duplication)
 - **Cloud**: `ACCEPTED` → full Cosmos + Blob; `REJECTED` → lean Cosmos (no Blob); `DUPLICATE` → local only
 - **Tags** (`people` / `places` / `events`) extracted during local media processing (MVP)
 

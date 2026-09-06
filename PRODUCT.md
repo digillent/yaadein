@@ -36,7 +36,9 @@ Supported decision states:
 | `REJECTED` | Digital junk; do not preserve                | `rejected/`       |
 | `DUPLICATE`| Exact duplicate of known media               | `duplicate/`      |
 
-**Move-on-classify (locked product rule):** when a user (or automatic classification) decides `ACCEPTED`, `REJECTED`, or `DUPLICATE`, Yaadein **moves** the file from the scanned source folder into the matching working subfolder under `YYYY/MM`. Source folders are cleaned as decisions are made. Files are never permanently deleted automatically.
+**Move-on-classify (locked product rule):** when a user (or automatic classification) decides `ACCEPTED`, `REJECTED`, or `DUPLICATE`, Yaadein **moves** the file from the scanned source folder into the matching working subfolder under `YYYY/MM`. Source folders are cleaned as decisions are made. Files are **never permanently deleted automatically**.
+
+Users may later run an explicit **cleanup** to delete local files under `rejected/` and/or `duplicate/` after they are satisfied with review (see below).
 
 ### 3. Review unknowns
 
@@ -57,15 +59,25 @@ flowchart TD
   saveRejected --> moveRejected
 ```
 
-### 4. Cloud preserve (post-local milestones)
+### 4. Local cleanup (after review)
+
+After decisions are made, users can reclaim disk space with an **explicit, confirmed** cleanup:
+
+- Delete local files in `rejected/` (all, by period, or selected)
+- Delete local files in `duplicate/` (all, by period, or selected)
+- Never delete `preserve/` via this flow
+- Never run cleanup automatically as part of scan or review
+- **Keep** hash decisions in local cache (and Cosmos for accepted/rejected) so the same bytes are recognized later without needing the junk files on disk
+
+### 5. Cloud preserve (post-local milestones)
 
 - **ACCEPTED** — full metadata + tags in Cosmos; bytes uploaded to Blob.
-- **REJECTED** — lean Cosmos decision record (`id` = hash, `decision: REJECTED`); **no** Blob object and no rich preserve metadata required.
+- **REJECTED** — lean Cosmos decision record with separate `contentHash` + `fileSize` fields and `decision: REJECTED`; **no** Blob object and no rich preserve metadata required.
 - **DUPLICATE** — no new Cosmos document (the accepted hash already identifies the content); move locally to `duplicate/`.
 - Cloud metadata is authoritative for accepted preserve/restore and for recognizing prior rejections.
 - For accepted items, decision (`ACCEPTED`) and cloud sync status (`SYNCED`, `FAILED`, etc.) are separate concerns. Rejected cloud docs use `cloudStatus: NOT_REQUIRED`.
 
-### 5. Restore / download accepted media
+### 6. Restore / download accepted media
 
 Users can:
 
@@ -104,12 +116,12 @@ Path collisions under the same `YYYY/MM` (same original filename) are disambigua
 
 1. Scan user-selected folders for photos and videos.
 2. Process files locally whenever practical (discovery, hashing, metadata, moves).
-3. Generate reliable **SHA-256** content hashes locally.
+3. Generate reliable **SHA-256** content hashes locally; always record **file size** alongside the hash.
 4. During local media processing, extract **tags** into `people`, `places`, and `events` when identifiable from the file (embedded metadata, GPS/location, and related media fields). Missing tags are allowed (empty lists).
 5. Remember previously accepted, rejected, and duplicate media by content hash (local cache for all; cloud stores **accepted** and **rejected**).
-6. Recognize exact duplicates via content hash (hash already present as accepted → `DUPLICATE`, no new cloud row).
+6. Recognize exact duplicates only when **SHA-256 hashes match**, using file size to narrow candidates and surface recoverable storage—never treat size alone as proof of duplication.
 7. Organize decided media into the local working folder structure by move.
-8. Never permanently delete media automatically.
+8. Never permanently delete media **automatically**; allow **user-initiated** cleanup that deletes local `rejected/` and `duplicate/` files after confirmation (decisions remain remembered by hash).
 9. Allow explicit review of `UNKNOWN` media (including showing extracted tags).
 10. Persist **accepted** media metadata (including tags) and **rejected** decision hashes in Cosmos; do not create cloud documents for duplicates.
 11. Preserve accepted media in cloud object storage (when cloud is enabled); never upload rejected/duplicate bytes to Blob.
@@ -124,10 +136,10 @@ Path collisions under the same `YYYY/MM` (same original filename) are disambigua
 - **Local-first processing** for filesystem, hashing, and classification.
 - **No privileged Azure credentials** in the Electron app (no Cosmos keys, storage keys, client secrets, or privileged function keys). Non-secret config (client ID, authority, API URL) is allowed.
 - **Security:** OAuth Authorization Code with PKCE via Microsoft Entra External ID; API uses the access token; Azure Functions use Managed Identity to reach Cosmos and Blob.
-- **Integrity:** content hashes used for identity and transfer verification.
+- **Integrity:** content hashes verify identity and transfers; **file size** is always stored with the hash as a simple integrity companion (same hash with a different size is anomalous—possible incomplete/corrupt copy).
 - **Resilience:** retries and recoverable interrupted uploads/downloads.
 - **Simplicity:** prefer small testable modules; avoid premature abstraction and bidirectional DB sync engines.
-- **Performance:** avoid hashing/IO on the React UI thread; batch lookups.
+- **Performance:** avoid hashing/IO on the React UI thread; use file size to narrow duplicate candidates before expensive hash work or DB lookups where practical; batch cloud lookups.
 - **Rebuildability:** local state is cache/queue only and disposable where practical (accepted + rejected decisions rebuild from Cosmos; duplicate classifications re-derived when a hash matches accepted).
 
 ## Decision vs cloud vs local availability
@@ -158,13 +170,14 @@ Example of a valid combination:
 - Electron + React + Redux Toolkit + TypeScript desktop app
 - Configurable working folder with `preserve` / `duplicate` / `rejected` and `YYYY/MM`
 - Move-on-classify behavior
-- SHA-256 content hashing
+- SHA-256 content hashing with **file size** recorded on every media record
 - Metadata / capture-date extraction with filesystem fallback
 - Tag extraction during media processing: `tags.people`, `tags.places`, `tags.events`
-- Local SQLite cache for hash → decision, tags, and scan/queue acceleration
+- Local SQLite cache for hash → decision, tags, size, and scan/queue acceleration (`UNIQUE(content_hash, file_size)`)
 - Folder scan, batch classify of known hashes, skip unknowns
 - Explicit review UI for unknowns (show extracted tags)
-- Exact-hash duplicate detection
+- Exact duplicate detection: size candidates → SHA-256 confirm (hash match required; size alone never proves duplication)
+- **User-initiated cleanup** to delete local `rejected/` and `duplicate/` files after confirmation (hash decisions retained)
 - Desktop-first delivery: local milestones before Azure
 - Later MVP cloud: Entra External ID, Azure Functions, Cosmos DB Serverless, Blob Storage, SAS-based direct upload/download, restore flows
 
@@ -175,11 +188,12 @@ Example of a valid combination:
 - Rich tag search/browse product surfaces beyond storing tags and showing them in review (can deepen post-MVP)
 - Mobile application
 - Multi-user or family sharing
-- Automatic permanent deletion or emptying of `rejected` / `duplicate`
+- **Automatic** permanent deletion (scan/review must never delete without an explicit cleanup action)
+- Deleting `preserve/` or cloud blobs via the junk cleanup flow
 - Bidirectional database synchronization / CRDT conflict engines
 - Non-Azure cloud providers (S3, GCS, etc.) as implementations
 - Restoring files back to their **original scan paths** (restore rebuilds `preserve/` only)
-- Soft-delete / trash UI beyond moving into working folders
+- Soft-delete / OS trash integration beyond confirmed permanent delete of rejected/duplicate locals (OS trash is optional nicety, not required)
 - Sophisticated video transcoding pipelines beyond what review needs
 - Over-engineered provider frameworks “for someday”
 
@@ -203,26 +217,51 @@ Sources (best-effort; empty arrays when unknown):
 
 Do not block scan/classify when tags are missing. Deeper identification (for example ML face clustering) may enrich the same schema later without changing the document shape.
 
+## Content identity and duplicate checking
+
+- **Primary content identity:** `contentHash` (SHA-256 of full file bytes).
+- **Always store** `fileSize` with the hash (display, candidate narrowing, recoverable-storage estimates, incomplete/corrupt detection).
+- **File size alone cannot prove duplication**—different files can share a size.
+
+Recommended duplicate-check sequence:
+
+1. Look for records / peers with the **same file size** (narrow candidates; optional skip of obviously unique sizes).
+2. Compare **SHA-256** hashes.
+3. Treat as exact duplicates **only when hashes match**.
+
+Local SQLite useful constraint:
+
+```text
+UNIQUE(content_hash, file_size)
+```
+
+SHA-256 alone is effectively sufficient for identity; keeping size in the unique constraint adds a simple integrity check. Treat `content_hash` as primary identity; if a hash collides with a stored row whose `file_size` differs, flag as anomalous rather than silently accepting as the same media.
+
 ## Cloud metadata (authoritative for accepted + rejected)
 
-**Document identity:** Cosmos `id` **is** the SHA-256 content hash. Do not store a separate `contentHash` field—the id is the hash.
+**Document identity:** Every Cosmos media document **must** include separate top-level fields:
+
+- `contentHash` (SHA-256 string) — primary content identity
+- `fileSize` (number, bytes) — always stored; never inferred from other fields
+
+Document `id` equals `contentHash` for convenient point reads, but **`id` is not a substitute** for the `contentHash` property—clients and APIs always read/write `contentHash` and `fileSize` as their own fields.
 
 **What is written to cloud:**
 
 | Decision    | Cosmos document | Blob object |
 |-------------|-----------------|-------------|
 | `ACCEPTED`  | Yes (full meta + tags) | Yes |
-| `REJECTED`  | Yes (lean: hash + decision) | No |
+| `REJECTED`  | Yes (lean: `contentHash` + `fileSize` + decision) | No |
 | `DUPLICATE` | No (accepted doc already exists for that hash) | No |
 | `UNKNOWN`   | No              | No          |
 
 ### Accepted document fields
 
-Partition `/userId`, `id` = SHA-256. Fields such as:
+Partition `/userId`, `id` = `contentHash`. Fields such as:
 
-- `id` / `userId`
+- `id` / `userId` / `contentHash` / `fileSize`
 - `decision`: `ACCEPTED` / `decisionTimestamp`
-- `captureDate`, `mediaType`, `originalFilename`, `fileSize`
+- `captureDate`, `mediaType`, `originalFilename`
 - `width` / `height` / `duration`
 - `tags` (`people`, `places`, `events`)
 - `cloudObjectId` / `cloudStatus`
@@ -232,7 +271,7 @@ Partition `/userId`, `id` = SHA-256. Fields such as:
 
 Enough to recognize the hash on any device—no Blob, no preserve metadata required:
 
-- `id` / `userId`
+- `id` / `userId` / `contentHash` / `fileSize`
 - `decision`: `REJECTED` / `decisionTimestamp`
 - `cloudStatus`: `NOT_REQUIRED`
 - `createdAt` / `updatedAt`

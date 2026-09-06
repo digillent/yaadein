@@ -28,7 +28,7 @@ flowchart TD
   saveRejected --> moveRejected
 ```
 
-**Cloud (from Milestone 10+):** accepted → full Cosmos + Blob; rejected → lean Cosmos; duplicate → no new Cosmos row.
+**Cloud (from Milestone 11+):** accepted → full Cosmos + Blob; rejected → lean Cosmos; duplicate → no new Cosmos row.
 
 ---
 
@@ -71,23 +71,24 @@ flowchart TD
 
 ---
 
-## Milestone 3 — Content hash, metadata, and tags
+## Milestone 3 — Content hash, metadata, size, and tags
 
-**Goal:** Compute SHA-256; extract capture date (with filesystem fallback); extract MVP tags during the same processing pass.
+**Goal:** Compute SHA-256 and file size; extract capture date (with filesystem fallback); extract MVP tags during the same processing pass.
 
 **In scope:**
 
 - SHA-256 of full file bytes
+- Record `fileSize` with every hash result
 - Photo EXIF capture date where available
 - Fallback: `mtime` then `ctime`
-- Basic media type / size; best-effort width/height/duration where easy
+- Basic media type; best-effort width/height/duration where easy
 - Tag extraction into `tags.people`, `tags.places`, `tags.events` from embedded metadata / GPS / related fields (empty arrays when unknown)
 
 **Out of scope:** Classification, SQLite, cloud, perceptual hash, ML face recognition/clustering, reverse-geocode network services beyond what can be done simply from already-present location strings (GPS→place name can be a thin best-effort later within this milestone only if kept simple and tested).
 
-**Expected tests:** Known fixture files → stable hash; missing EXIF → fallback date; date feeds Milestone 2 path helper; fixtures with/without tag metadata → expected `tags` shape.
+**Expected tests:** Known fixture files → stable hash + size; missing EXIF → fallback date; date feeds Milestone 2 path helper; fixtures with/without tag metadata → expected `tags` shape.
 
-**Working state:** CLI or IPC returns hash + metadata + tags for a selected file.
+**Working state:** CLI or IPC returns hash + file size + metadata + tags for a selected file.
 
 ---
 
@@ -97,13 +98,14 @@ flowchart TD
 
 **In scope:**
 
-- SQLite schema for media cache rows (hash, decision, paths, timestamps, basic metadata, tags JSON)
-- Upsert / get-by-hash / batch-get-by-hashes
+- SQLite schema for media cache rows (`content_hash`, `file_size`, decision, paths, timestamps, basic metadata, tags JSON)
+- Constraint `UNIQUE(content_hash, file_size)`
+- Upsert / get-by-hash / batch-get-by-hashes; optional lookup helpers by size for candidate narrowing
 - App-local DB path under user data
 
 **Out of scope:** Cloud sync, scan orchestration, Redux polish.
 
-**Expected tests:** Batch get/upsert including tags; restart process still sees rows (integration with temp DB).
+**Expected tests:** Batch get/upsert including tags and size; unique constraint behavior; restart process still sees rows (integration with temp DB).
 
 **Working state:** Decisions can be written and read back without UI.
 
@@ -151,19 +153,22 @@ flowchart TD
 
 ## Milestone 7 — Exact duplicate detection
 
-**Goal:** During scan, recognize exact content-hash duplicates and move them to `duplicate/`.
+**Goal:** During scan, recognize exact duplicates and move them to `duplicate/` using size then hash.
 
 **In scope:**
 
-- If hash matches an existing `ACCEPTED` record (local cache and, when online, Cosmos accepted lookup), classify new file as `DUPLICATE` with local `duplicateOf`
-- Also detect duplicates within the same scan batch
+- Duplicate-check sequence: same **file size** candidates → compare **SHA-256** → exact duplicate **only if hashes match**
+- Never treat size-only matches as duplicates
+- If hash matches an existing `ACCEPTED` record (local cache and, when online, Cosmos), classify new file as `DUPLICATE` with local `duplicateOf`
+- Also detect duplicates within the same scan batch (group by size, then confirm hash)
+- Flag hash match with mismatched stored `file_size` as anomalous
 - Move to `duplicate/YYYY/MM` and record decision **locally only** (no Cosmos document for the duplicate)
 
 **Out of scope:** Near-duplicate / perceptual hash; writing duplicate rows to cloud.
 
-**Expected tests:** Two identical fixtures; one preserved path, one duplicate path; local `duplicateOf` set; no cloud write attempted for the duplicate.
+**Expected tests:** Identical fixtures → one preserve, one duplicate; same-size different-bytes → not duplicate; size mismatch on same hash → anomaly path; local `duplicateOf` set; no cloud write for the duplicate.
 
-**Working state:** Re-importing the same bytes yields duplicates, not second accepts.
+**Working state:** Re-importing the same bytes yields duplicates, not second accepts; size is used for candidates and UI, not as proof.
 
 ---
 
@@ -185,7 +190,28 @@ flowchart TD
 
 ---
 
-## Milestone 9 — Auth (Entra External ID + PKCE)
+## Milestone 9 — Local cleanup of rejected and duplicates
+
+**Goal:** After review, let users reclaim disk by permanently deleting local junk under `rejected/` and `duplicate/` with explicit confirmation.
+
+**In scope:**
+
+- Cleanup actions: all rejected, all duplicates, by year/month, or selected items
+- Confirmation required in UI before delete
+- Delete files from disk only under `rejected/` and `duplicate/` (never `preserve/`)
+- Retain hash → decision in SQLite (and later Cosmos) so future scans still recognize the content
+- Clear or mark local path / availability after delete
+- Progress/errors for bulk cleanup
+
+**Out of scope:** Auto-cleanup on scan/review; deleting preserve or cloud blobs; OS Recycle Bin integration (optional later).
+
+**Expected tests:** Temp-dir fixtures; after cleanup files gone, decisions still returned by hash lookup; preserve untouched; confirmation gate tested at domain or IPC boundary.
+
+**Working state:** User can free space after finishing a review pass without losing decision memory.
+
+---
+
+## Milestone 10 — Auth (Entra External ID + PKCE)
 
 **Goal:** Sign in from Electron; obtain API access tokens without client secrets.
 
@@ -204,7 +230,7 @@ flowchart TD
 
 ---
 
-## Milestone 10 — Azure Functions + Cosmos (accepted + rejected)
+## Milestone 11 — Azure Functions + Cosmos (accepted + rejected)
 
 **Goal:** Authenticated API persists and returns **accepted** (full) and **rejected** (lean) documents in batches; local cache refreshes from cloud.
 
@@ -214,7 +240,7 @@ flowchart TD
 - Validate JWT
 - Managed Identity to Cosmos
 - Batch lookup by hashes; batch upsert **accepted** metadata/tags and **rejected** lean decision docs
-- Cosmos documents: partition `/userId`, `id` = SHA-256 content hash (id is the hash; no separate `contentHash` field)
+- Cosmos documents: partition `/userId`; required fields `contentHash` and `fileSize` (separate); `id` = `contentHash` for point-read convenience only
 - Do not create cloud documents for `DUPLICATE`
 - Desktop `CloudApiClient` integration; flush offline accepted/rejected queue
 - Local accepted/rejected cache treated as non-authoritative after sync
@@ -223,11 +249,11 @@ flowchart TD
 
 **Expected tests:** Function handler tests with mocked Cosmos (accepted tags round-trip; rejected lean upsert; duplicate upserts rejected); client batch marshalling tests.
 
-**Working state:** Accepted and rejected decisions survive across machines via Cosmos (accepted bytes still local until Milestone 11). Duplicates remain a local classification against accepted hashes.
+**Working state:** Accepted and rejected decisions survive across machines via Cosmos (accepted bytes still local until Milestone 12). Duplicates remain a local classification against accepted hashes.
 
 ---
 
-## Milestone 11 — Blob upload for accepted media
+## Milestone 12 — Blob upload for accepted media
 
 **Goal:** Upload accepted media directly to Blob using short-lived scoped access; track `cloudStatus`.
 
@@ -247,7 +273,7 @@ flowchart TD
 
 ---
 
-## Milestone 12 — Download, restore, and preserve rebuild
+## Milestone 13 — Download, restore, and preserve rebuild
 
 **Goal:** Download accepted media with hash verify; support single, selection, year/month, and full restore into `preserve/YYYY/MM`.
 
@@ -272,7 +298,7 @@ flowchart TD
 - Perceptual / near-duplicate detection
 - Mobile client
 - Multi-user / family sharing
-- Permanent deletion tools
+- Automatic permanent deletion during scan/review (user cleanup of rejected/duplicate is in MVP as Milestone 9)
 - Bidirectional sync / CRDTs
 - Non-Azure providers
 - Heavy IaC/CI beyond what a milestone needs to ship
@@ -289,8 +315,9 @@ flowchart LR
   M5 --> M7[M7 Exact duplicates]
   M6 --> M8[M8 Redux UX]
   M7 --> M8
-  M8 --> M9[M9 Auth]
-  M9 --> M10[M10 Functions Cosmos]
-  M10 --> M11[M11 Blob upload]
-  M11 --> M12[M12 Restore]
+  M8 --> M9[M9 Local cleanup]
+  M9 --> M10[M10 Auth]
+  M10 --> M11[M11 Functions Cosmos]
+  M11 --> M12[M12 Blob upload]
+  M12 --> M13[M13 Restore]
 ```
