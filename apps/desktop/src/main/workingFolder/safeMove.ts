@@ -4,7 +4,7 @@ import { basename } from 'node:path'
 import type { MoveMediaInput, MoveMediaResult } from './types'
 import { destinationDirectory, destinationFilePath, formatYearMonth } from './paths'
 import { ensureWorkingFolder } from './ensureTree'
-import { captureDateFromStats } from './filesystemCaptureDate'
+import { resolveOrganizeDate } from '../media/resolveOrganizeDate'
 
 type ResolvedMoveInput = MoveMediaInput & { captureDate: Date }
 
@@ -46,8 +46,8 @@ async function sameFilesystem(sourcePath: string, destinationDir: string): Promi
 /**
  * Move a media file into the working folder.
  * Same volume: rename. Cross-volume: copy, verify size, then delete source.
- * YYYY/MM uses `captureDate` when provided; otherwise the oldest usable
- * filesystem timestamp (mtime / birthtime / ctime / atime).
+ * YYYY/MM uses `captureDate` when provided (user override); otherwise EXIF
+ * capture date, else the oldest usable filesystem timestamp.
  */
 export async function moveMediaIntoWorkingFolder(
   input: MoveMediaInput,
@@ -61,7 +61,9 @@ export async function moveMediaIntoWorkingFolder(
     throw new Error(`Source path is not a file: ${input.sourcePath}`)
   }
 
-  const captureDate = input.captureDate ?? captureDateFromStats(sourceStat)
+  const captureDate = input.captureDate
+    ? input.captureDate
+    : (await resolveOrganizeDate(input.sourcePath)).date
   if (Number.isNaN(captureDate.getTime())) {
     throw new Error('captureDate must be a valid Date')
   }

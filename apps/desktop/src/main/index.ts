@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { registerWorkingFolderIpc } from './ipc/workingFolderIpc'
+import { registerMediaIpc } from './ipc/mediaIpc'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -34,6 +35,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   registerWorkingFolderIpc()
+  registerMediaIpc()
   createWindow()
 
   app.on('activate', () => {
