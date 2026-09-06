@@ -27,4 +27,12 @@ export default tseslint.config(
       globals: globals.node,
     },
   },
+  {
+    files: ['src/main/**/*.test.ts', 'src/shared/**/*.test.ts'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
 )

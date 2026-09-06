@@ -42,3 +42,59 @@ h1 {
   font-size: 1.1rem;
   color: #57534e;
 }
+
+.devPanel {
+  margin-top: 2.5rem;
+  max-width: 40rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #d6d3d1;
+}
+
+.devPanel h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.hint {
+  margin: 0.4rem 0 1rem;
+  color: #78716c;
+  font-size: 0.95rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  align-items: center;
+}
+
+button,
+select {
+  font: inherit;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid #a8a29e;
+  border-radius: 6px;
+  background: #fff;
+  color: #1c1917;
+}
+
+button:disabled {
+  opacity: 0.5;
+}
+
+.bucket {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  color: #44403c;
+  font-size: 0.95rem;
+}
+
+.status {
+  margin: 0.5rem 0 0;
+  color: #44403c;
+  font-size: 0.9rem;
+  word-break: break-all;
+}
