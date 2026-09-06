@@ -1,8 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { appName } from '../shared/appInfo'
 import type { MediaInspection, MediaTags } from '../shared/mediaTypes'
+import type { AuthSession, GraphMeProfile } from '../shared/authTypes'
 
 export type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
+
 
 export type MoveMediaPayload = {
   sourcePath: string
@@ -22,7 +24,7 @@ export type MoveMediaResult = {
   yearMonth: string
 }
 
-export type { MediaInspection, MediaTags }
+export type { MediaInspection, MediaTags, AuthSession, GraphMeProfile }
 
 const api = {
   appName,
@@ -37,6 +39,10 @@ const api = {
     sourcePath: string
     captureDateIso?: string
   }): Promise<MediaInspection> => ipcRenderer.invoke('media:inspect', payload),
+  getAuthSession: (): Promise<AuthSession> => ipcRenderer.invoke('auth:getSession'),
+  signIn: (): Promise<AuthSession> => ipcRenderer.invoke('auth:signIn'),
+  signOut: (): Promise<AuthSession> => ipcRenderer.invoke('auth:signOut'),
+  fetchMe: (): Promise<GraphMeProfile> => ipcRenderer.invoke('auth:fetchMe'),
 }
 
 contextBridge.exposeInMainWorld('yaadein', api)

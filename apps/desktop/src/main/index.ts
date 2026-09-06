@@ -1,7 +1,11 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
+import { loadDesktopEnvFile } from './auth/loadEnv'
 import { registerWorkingFolderIpc } from './ipc/workingFolderIpc'
 import { registerMediaIpc } from './ipc/mediaIpc'
+import { registerAuthIpc } from './ipc/authIpc'
+
+loadDesktopEnvFile()
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -34,6 +38,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  registerAuthIpc()
   registerWorkingFolderIpc()
   registerMediaIpc()
   createWindow()
