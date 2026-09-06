@@ -4,6 +4,9 @@ import { basename } from 'node:path'
 import type { MoveMediaInput, MoveMediaResult } from './types'
 import { destinationDirectory, destinationFilePath, formatYearMonth } from './paths'
 import { ensureWorkingFolder } from './ensureTree'
+import { captureDateFromStats } from './filesystemCaptureDate'
+
+type ResolvedMoveInput = MoveMediaInput & { captureDate: Date }
 
 async function pathExists(path: string): Promise<boolean> {
   try {
@@ -14,7 +17,7 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-async function resolveUniqueDestinationPath(input: MoveMediaInput): Promise<string> {
+async function resolveUniqueDestinationPath(input: ResolvedMoveInput): Promise<string> {
   const originalFilename = basename(input.sourcePath)
 
   for (let attempt = 0; attempt < 1000; attempt += 1) {
@@ -43,6 +46,8 @@ async function sameFilesystem(sourcePath: string, destinationDir: string): Promi
 /**
  * Move a media file into the working folder.
  * Same volume: rename. Cross-volume: copy, verify size, then delete source.
+ * YYYY/MM uses `captureDate` when provided; otherwise the oldest usable
+ * filesystem timestamp (mtime / birthtime / ctime / atime).
  */
 export async function moveMediaIntoWorkingFolder(
   input: MoveMediaInput,
@@ -56,12 +61,19 @@ export async function moveMediaIntoWorkingFolder(
     throw new Error(`Source path is not a file: ${input.sourcePath}`)
   }
 
+  const captureDate = input.captureDate ?? captureDateFromStats(sourceStat)
+  if (Number.isNaN(captureDate.getTime())) {
+    throw new Error('captureDate must be a valid Date')
+  }
+
+  const resolved: ResolvedMoveInput = { ...input, captureDate }
+
   await ensureWorkingFolder(input.workingRoot)
 
-  const destDir = destinationDirectory(input.workingRoot, input.bucket, input.captureDate)
+  const destDir = destinationDirectory(input.workingRoot, input.bucket, captureDate)
   await mkdir(destDir, { recursive: true })
 
-  const destinationPath = await resolveUniqueDestinationPath(input)
+  const destinationPath = await resolveUniqueDestinationPath(resolved)
 
   if (await sameFilesystem(input.sourcePath, destDir)) {
     await rename(input.sourcePath, destinationPath)
@@ -86,6 +98,6 @@ export async function moveMediaIntoWorkingFolder(
   return {
     destinationPath,
     bucket: input.bucket,
-    yearMonth: formatYearMonth(input.captureDate),
+    yearMonth: formatYearMonth(captureDate),
   }
 }

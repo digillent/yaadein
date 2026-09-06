@@ -10,3 +10,4 @@ export {
 } from './paths'
 export { ensureWorkingFolder } from './ensureTree'
 export { moveMediaIntoWorkingFolder } from './safeMove'
+export { captureDateFromStats, resolveFilesystemCaptureDate } from './filesystemCaptureDate'

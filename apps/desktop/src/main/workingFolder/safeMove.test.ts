@@ -83,19 +83,23 @@ describe('workingFolder ensure + move', () => {
     expect(await readFile(join(monthDir, 'photo.jpg'), 'utf8')).toBe('already-there')
   })
 
-  it('moves into rejected with an injected capture date', async () => {
+  it('defaults YYYY/MM from the oldest filesystem timestamp when captureDate is omitted', async () => {
     const root = await makeTemp('yaadein-work-')
     const sourceDir = await makeTemp('yaadein-src-')
-    const sourcePath = join(sourceDir, 'clip.mp4')
-    await writeFile(sourcePath, 'video-bytes')
+    const sourcePath = join(sourceDir, 'dated.jpg')
+    await writeFile(sourcePath, 'payload')
+
+    const { utimes } = await import('node:fs/promises')
+    const stamp = new Date('2023-04-18T10:30:00.000Z')
+    await utimes(sourcePath, stamp, stamp)
 
     const result = await moveMediaIntoWorkingFolder({
       sourcePath,
       workingRoot: root,
-      bucket: 'rejected',
-      captureDate: new Date('2025-01-02T00:00:00.000Z'),
+      bucket: 'preserve',
     })
 
-    expect(result.destinationPath).toBe(join(root, 'rejected', '2025', '01', 'clip.mp4'))
+    expect(result.yearMonth).toBe('2023/04')
+    expect(result.destinationPath).toBe(join(root, 'preserve', '2023', '04', 'dated.jpg'))
   })
 })

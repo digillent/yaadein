@@ -67,13 +67,16 @@ export function registerWorkingFolderIpc(): void {
       if (!isWorkingBucket(payload.bucket)) {
         throw new Error('bucket must be preserve, duplicate, or rejected')
       }
-      if (typeof payload.captureDateIso !== 'string') {
-        throw new Error('captureDateIso is required')
-      }
 
-      const captureDate = new Date(payload.captureDateIso)
-      if (Number.isNaN(captureDate.getTime())) {
-        throw new Error('captureDateIso must be a valid ISO date')
+      let captureDate: Date | undefined
+      if (payload.captureDateIso !== undefined && payload.captureDateIso !== null) {
+        if (typeof payload.captureDateIso !== 'string') {
+          throw new Error('captureDateIso must be a string when provided')
+        }
+        captureDate = new Date(payload.captureDateIso)
+        if (Number.isNaN(captureDate.getTime())) {
+          throw new Error('captureDateIso must be a valid ISO date')
+        }
       }
 
       const nameDisambiguator =

@@ -7,7 +7,11 @@ export type MoveMediaPayload = {
   sourcePath: string
   workingRoot: string
   bucket: WorkingBucket
-  captureDateIso: string
+  /**
+   * Optional user (or test) override for organize/event date.
+   * When omitted, main uses the oldest usable filesystem timestamp (EXIF in M3).
+   */
+  captureDateIso?: string
   nameDisambiguator?: string
 }
 
