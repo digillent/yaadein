@@ -1,0 +1,7 @@
+electron
+dist
+out
+.DS_Store
+*.local
+.vscode/*
+!.vscode/extensions.json
