@@ -10,7 +10,7 @@ Read these before writing application code:
 |-----|---------|
 | [PRODUCT.md](PRODUCT.md) | Purpose, workflows, MVP scope, cloud write policy |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, Cosmos/Blob design, risks, diagrams |
-| [ROADMAP.md](ROADMAP.md) | 12 desktop-first milestones |
+| [ROADMAP.md](ROADMAP.md) | Desktop-first milestones |
 | [AGENTS.md](AGENTS.md) | Coding rules for Cursor agents |
 
 ## Locked decisions (summary)
@@ -38,4 +38,17 @@ flowchart TD
   saveRejected --> moveRejected
 ```
 
-Implementation starts at **Milestone 1** in [ROADMAP.md](ROADMAP.md).
+Implementation follows [ROADMAP.md](ROADMAP.md). Current code: **Milestone 1** tooling skeleton.
+
+## Development
+
+Requires Node.js 20+ and [pnpm](https://pnpm.io/).
+
+```bash
+pnpm install
+pnpm dev      # launch Electron + React shell
+pnpm test     # unit tests
+pnpm lint     # ESLint
+```
+
+Desktop app lives in `apps/desktop`.

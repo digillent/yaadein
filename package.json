@@ -1,0 +1,14 @@
+{
+  "name": "yaadein",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "pnpm --filter @yaadein/desktop dev",
+    "build": "pnpm --filter @yaadein/desktop build",
+    "test": "pnpm --filter @yaadein/desktop test",
+    "lint": "pnpm --filter @yaadein/desktop lint"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
