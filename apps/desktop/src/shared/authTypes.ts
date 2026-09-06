@@ -3,6 +3,8 @@ export type AuthSession = {
   accountName: string | null
   username: string | null
   homeAccountId: string | null
+  /** Entra oid — Cosms partition key `/userId`. */
+  userId: string | null
 }
 
 export type GraphMeProfile = {

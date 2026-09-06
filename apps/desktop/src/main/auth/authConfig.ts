@@ -1,10 +1,17 @@
+import { COSMOS_DEFAULT_SCOPE } from '../cosmos/cosmosConfig'
+
 export type AuthPublicConfig = {
   clientId: string
   tenantId: string
   /** Single-tenant authority for this Azure subscription directory. */
   authority: string
-  /** Delegated scopes requested at sign-in (Graph `me` for Milestone 4 stub). */
+  /**
+   * Scopes for interactive sign-in. Cosms is primary for M5+;
+   * Graph User.Read stays available for the /me harness via a separate token request.
+   */
   scopes: string[]
+  graphScopes: string[]
+  cosmosScope: string
   redirectUri: string
 }
 
@@ -15,6 +22,7 @@ export type AuthPublicConfig = {
 export function getAuthPublicConfig(): AuthPublicConfig {
   const clientId = process.env.YAADEIN_ENTRA_CLIENT_ID?.trim() ?? ''
   const tenantId = process.env.YAADEIN_ENTRA_TENANT_ID?.trim() ?? ''
+  const cosmosScope = process.env.YAADEIN_COSMOS_SCOPE?.trim() || COSMOS_DEFAULT_SCOPE
 
   return {
     clientId,
@@ -22,7 +30,9 @@ export function getAuthPublicConfig(): AuthPublicConfig {
     authority: tenantId
       ? `https://login.microsoftonline.com/${tenantId}`
       : 'https://login.microsoftonline.com/common',
-    scopes: ['User.Read'],
+    scopes: [cosmosScope],
+    graphScopes: ['User.Read'],
+    cosmosScope,
     redirectUri: 'http://localhost',
   }
 }

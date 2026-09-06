@@ -1,6 +1,6 @@
 import { app, ipcMain } from 'electron'
-import { join } from 'node:path'
-import { AuthService, type AuthSession, type GraphMeProfile } from '../auth'
+import { getAuthService } from '../auth/getAuthService'
+import type { AuthSession, GraphMeProfile } from '../../shared/authTypes'
 
 const CHANNELS = {
   getSession: 'auth:getSession',
@@ -9,34 +9,21 @@ const CHANNELS = {
   fetchMe: 'auth:fetchMe',
 } as const
 
-let authService: AuthService | null = null
-let initPromise: Promise<void> | null = null
-
-async function getAuthService(): Promise<AuthService> {
-  if (!authService) {
-    const cachePath = join(app.getPath('userData'), 'msal-cache.json')
-    authService = new AuthService(cachePath)
-    initPromise = authService.initialize()
-  }
-  await initPromise
-  return authService
-}
-
 export function registerAuthIpc(): void {
   ipcMain.handle(CHANNELS.getSession, async (): Promise<AuthSession> => {
-    return (await getAuthService()).getSession()
+    return (await getAuthService(app.getPath('userData'))).getSession()
   })
 
   ipcMain.handle(CHANNELS.signIn, async (): Promise<AuthSession> => {
-    return (await getAuthService()).signInInteractive()
+    return (await getAuthService(app.getPath('userData'))).signInInteractive()
   })
 
   ipcMain.handle(CHANNELS.signOut, async (): Promise<AuthSession> => {
-    return (await getAuthService()).signOut()
+    return (await getAuthService(app.getPath('userData'))).signOut()
   })
 
   ipcMain.handle(CHANNELS.fetchMe, async (): Promise<GraphMeProfile> => {
-    return (await getAuthService()).fetchMeProfile()
+    return (await getAuthService(app.getPath('userData'))).fetchMeProfile()
   })
 }
 
