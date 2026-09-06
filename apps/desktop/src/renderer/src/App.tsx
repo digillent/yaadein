@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getShellTitle } from '@shared/appInfo'
 import type { MediaInspection } from '@shared/mediaTypes'
+import type { AuthSession, GraphMeProfile } from '@shared/authTypes'
 
 type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
 
@@ -22,6 +23,19 @@ export default function App() {
   const [status, setStatus] = useState<string>('')
   const [inspection, setInspection] = useState<MediaInspection | null>(null)
   const [busy, setBusy] = useState(false)
+  const [session, setSession] = useState<AuthSession | null>(null)
+  const [meProfile, setMeProfile] = useState<GraphMeProfile | null>(null)
+
+  useEffect(() => {
+    void window.yaadein.getAuthSession().then(setSession).catch(() => {
+      setSession({
+        signedIn: false,
+        accountName: null,
+        username: null,
+        homeAccountId: null,
+      })
+    })
+  }, [])
 
   async function chooseWorkingRoot(): Promise<void> {
     const path = await window.yaadein.pickWorkingDirectory()
@@ -111,10 +125,77 @@ export default function App() {
     }
   }
 
+  async function signIn(): Promise<void> {
+    setBusy(true)
+    try {
+      const next = await window.yaadein.signIn()
+      setSession(next)
+      setMeProfile(null)
+      setStatus(next.signedIn ? `Signed in as ${next.username ?? next.accountName}` : 'Signed out')
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function signOut(): Promise<void> {
+    setBusy(true)
+    try {
+      const next = await window.yaadein.signOut()
+      setSession(next)
+      setMeProfile(null)
+      setStatus('Signed out')
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function callMe(): Promise<void> {
+    setBusy(true)
+    try {
+      const profile = await window.yaadein.fetchMe()
+      setMeProfile(profile)
+      setStatus(`Graph /me: ${profile.displayName ?? profile.userPrincipalName ?? profile.id}`)
+    } catch (error) {
+      setMeProfile(null)
+      setStatus(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <main className="shell">
       <h1>{title}</h1>
       <p className="tagline">Clear digital clutter and preserve the memories that matter.</p>
+
+      <section className="devPanel" aria-label="Auth harness">
+        <h2>Sign-in (Entra + PKCE)</h2>
+        <p className="hint">
+          Single-tenant public client. Sign-in opens the system browser; tokens stay in the main
+          process. Call Graph /me to verify the bearer token helper.
+        </p>
+        <div className="row">
+          <button type="button" disabled={busy} onClick={() => void signIn()}>
+            Sign in
+          </button>
+          <button type="button" disabled={busy || !session?.signedIn} onClick={() => void signOut()}>
+            Sign out
+          </button>
+          <button type="button" disabled={busy || !session?.signedIn} onClick={() => void callMe()}>
+            Call Graph /me
+          </button>
+        </div>
+        <p className="status" role="status">
+          {session?.signedIn
+            ? `Signed in: ${session.username ?? session.accountName ?? 'account'}`
+            : 'Not signed in'}
+        </p>
+        {meProfile ? <pre className="inspection">{JSON.stringify(meProfile, null, 2)}</pre> : null}
+      </section>
 
       <section className="devPanel" aria-label="Working folder harness">
         <h2>Working folder + media inspect</h2>

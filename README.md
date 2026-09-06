@@ -41,9 +41,7 @@ flowchart TD
   cosmosReject --> moveRejected
 ```
 
-Implementation follows [ROADMAP.md](ROADMAP.md). Milestones 1–3 are done (shell, working folder, hash/metadata/tags). **Next: Milestone 4 — Auth.**
-
-The earlier local-SQLite / move-before-upload plan is **superseded** (see ROADMAP). Close or ignore the `cursor/m4-sqlite-cache` branch.
+Implementation follows [ROADMAP.md](ROADMAP.md). Current code targets **Milestone 4** (Entra ID single-tenant sign-in + PKCE). Client/tenant IDs are non-secret public client settings in `apps/desktop/src/main/auth/authConfig.ts`.
 
 ## Development
 
@@ -57,3 +55,5 @@ pnpm lint     # ESLint
 ```
 
 Desktop app lives in `apps/desktop`.
+
+Current code targets **Milestone 4** (Entra ID single-tenant sign-in + PKCE). Copy `apps/desktop/.env.example` to `apps/desktop/.env` and set your client/tenant IDs locally (`.env` is gitignored).
