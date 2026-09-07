@@ -22,6 +22,11 @@ export function mediaTypeFromPath(sourcePath: string): string {
   return EXTENSION_MEDIA_TYPES[extension] ?? 'application/octet-stream'
 }
 
+export function isMediaPath(sourcePath: string): boolean {
+  const extension = extname(sourcePath).toLowerCase()
+  return Object.prototype.hasOwnProperty.call(EXTENSION_MEDIA_TYPES, extension)
+}
+
 export function isLikelyImagePath(sourcePath: string): boolean {
   return mediaTypeFromPath(sourcePath).startsWith('image/')
 }
