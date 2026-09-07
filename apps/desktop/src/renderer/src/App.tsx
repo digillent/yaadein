@@ -4,6 +4,7 @@ import type { MediaInspection } from '@shared/mediaTypes'
 import type { AuthSession, GraphMeProfile } from '@shared/authTypes'
 import type { AcceptUploadHarnessResult, CosmosHarnessResult } from '@shared/decisionTypes'
 import type { ScanClassifyResult, ScanProgress } from '@shared/scanTypes'
+import type { MediaPreview } from '@shared/reviewTypes'
 
 type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
 
@@ -32,6 +33,9 @@ export default function App() {
   const [scanRoot, setScanRoot] = useState('')
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null)
   const [scanResult, setScanResult] = useState<ScanClassifyResult | null>(null)
+  const [reviewQueue, setReviewQueue] = useState<string[]>([])
+  const [reviewIndex, setReviewIndex] = useState(0)
+  const [preview, setPreview] = useState<MediaPreview | null>(null)
 
   useEffect(() => {
     void window.yaadein.getAuthSession().then(setSession).catch(() => {
@@ -50,6 +54,32 @@ export default function App() {
       setScanProgress(progress)
     })
   }, [])
+
+  const currentReviewPath = reviewQueue[reviewIndex] ?? null
+
+  useEffect(() => {
+    if (!currentReviewPath) {
+      setPreview(null)
+      return
+    }
+    let cancelled = false
+    void window.yaadein.previewMedia(currentReviewPath).then(
+      (next) => {
+        if (!cancelled) {
+          setPreview(next)
+        }
+      },
+      (error: unknown) => {
+        if (!cancelled) {
+          setPreview(null)
+          setStatus(error instanceof Error ? error.message : String(error))
+        }
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [currentReviewPath])
 
   async function chooseWorkingRoot(): Promise<void> {
     const path = await window.yaadein.pickWorkingDirectory()
@@ -253,11 +283,68 @@ export default function App() {
         workingRoot,
       })
       setScanResult(result)
+      const unknowns = result.results
+        .filter((item) => item.outcome === 'skipped_unknown')
+        .map((item) => item.sourcePath)
+      setReviewQueue(unknowns)
+      setReviewIndex(0)
       setStatus(
         `Scan done: ${result.movedRejected} rejected, ${result.movedDuplicate} duplicate, ${result.skippedUnknown} unknown, ${result.errors} errors`,
       )
     } catch (error) {
       setScanResult(null)
+      setStatus(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function advanceReviewQueue(): void {
+    const next = reviewQueue.filter((_, index) => index !== reviewIndex)
+    setReviewQueue(next)
+    setReviewIndex((index) => (next.length === 0 ? 0 : Math.min(index, next.length - 1)))
+  }
+
+  async function acceptCurrent(): Promise<void> {
+    if (!currentReviewPath || !workingRoot) {
+      setStatus('Need a review item and working folder.')
+      return
+    }
+    setBusy(true)
+    try {
+      const result = await window.yaadein.reviewAccept({
+        sourcePath: currentReviewPath,
+        workingRoot,
+        ...(eventDateOverride
+          ? { captureDateIso: eventDateInputToIso(eventDateOverride) }
+          : {}),
+      })
+      setStatus(`Accepted → SYNCED → preserve/: ${result.destinationPath}`)
+      advanceReviewQueue()
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function rejectCurrent(): Promise<void> {
+    if (!currentReviewPath || !workingRoot) {
+      setStatus('Need a review item and working folder.')
+      return
+    }
+    setBusy(true)
+    try {
+      const result = await window.yaadein.reviewReject({
+        sourcePath: currentReviewPath,
+        workingRoot,
+        ...(eventDateOverride
+          ? { captureDateIso: eventDateInputToIso(eventDateOverride) }
+          : {}),
+      })
+      setStatus(`Rejected → rejected/: ${result.destinationPath}`)
+      advanceReviewQueue()
+    } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error))
     } finally {
       setBusy(false)
@@ -340,6 +427,54 @@ export default function App() {
             : ''}
         </p>
         {scanResult ? <pre className="inspection">{JSON.stringify(scanResult, null, 2)}</pre> : null}
+      </section>
+
+      <section className="devPanel" aria-label="Review unknowns harness">
+        <h2>Review unknowns</h2>
+        <p className="hint">
+          Queue fills from scan unknowns. Reject → Cosms lean → rejected/. Accept → Cosms + Blob
+          SYNCED → then preserve/. Upload failure leaves the source in place for retry.
+        </p>
+        <div className="row">
+          <button
+            type="button"
+            disabled={busy || !session?.signedIn || !currentReviewPath || !workingRoot}
+            onClick={() => void acceptCurrent()}
+          >
+            Accept → preserve
+          </button>
+          <button
+            type="button"
+            disabled={busy || !session?.signedIn || !currentReviewPath || !workingRoot}
+            onClick={() => void rejectCurrent()}
+          >
+            Reject → rejected
+          </button>
+          <button
+            type="button"
+            disabled={busy || reviewQueue.length === 0}
+            onClick={() =>
+              setReviewIndex((index) => (reviewQueue.length === 0 ? 0 : (index + 1) % reviewQueue.length))
+            }
+          >
+            Next in queue
+          </button>
+        </div>
+        <p className="status" role="status">
+          {reviewQueue.length === 0
+            ? 'Review queue empty — run scan to load unknowns.'
+            : `Review ${reviewIndex + 1}/${reviewQueue.length}: ${currentReviewPath}`}
+        </p>
+        {preview?.dataUrl ? (
+          <img
+            className="inspection"
+            src={preview.dataUrl}
+            alt={preview.sourcePath}
+            style={{ maxWidth: '100%', maxHeight: 360, objectFit: 'contain' }}
+          />
+        ) : currentReviewPath ? (
+          <p className="hint">No image preview (video or large file). Path is still reviewable.</p>
+        ) : null}
       </section>
 
       <section className="devPanel" aria-label="Working folder harness">

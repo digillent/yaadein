@@ -7,6 +7,7 @@ import { registerAuthIpc } from './ipc/authIpc'
 import { registerCosmosIpc } from './ipc/cosmosIpc'
 import { registerBlobIpc } from './ipc/blobIpc'
 import { registerScanIpc } from './ipc/scanIpc'
+import { registerReviewIpc } from './ipc/reviewIpc'
 
 loadDesktopEnvFile()
 
@@ -45,6 +46,7 @@ app.whenReady().then(() => {
   registerCosmosIpc()
   registerBlobIpc()
   registerScanIpc()
+  registerReviewIpc()
   registerWorkingFolderIpc()
   registerMediaIpc()
   createWindow()
