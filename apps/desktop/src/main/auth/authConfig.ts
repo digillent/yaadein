@@ -1,4 +1,5 @@
 import { COSMOS_DEFAULT_SCOPE } from '../cosmos/cosmosConfig'
+import { STORAGE_DEFAULT_SCOPE } from '../blob/blobConfig'
 
 export type AuthPublicConfig = {
   clientId: string
@@ -6,12 +7,13 @@ export type AuthPublicConfig = {
   /** Single-tenant authority for this Azure subscription directory. */
   authority: string
   /**
-   * Scopes for interactive sign-in. Cosms is primary for M5+;
-   * Graph User.Read stays available for the /me harness via a separate token request.
+   * Scopes for interactive sign-in. Cosms is primary;
+   * Graph and Storage use separate token requests when needed.
    */
   scopes: string[]
   graphScopes: string[]
   cosmosScope: string
+  storageScope: string
   redirectUri: string
 }
 
@@ -23,6 +25,7 @@ export function getAuthPublicConfig(): AuthPublicConfig {
   const clientId = process.env.YAADEIN_ENTRA_CLIENT_ID?.trim() ?? ''
   const tenantId = process.env.YAADEIN_ENTRA_TENANT_ID?.trim() ?? ''
   const cosmosScope = process.env.YAADEIN_COSMOS_SCOPE?.trim() || COSMOS_DEFAULT_SCOPE
+  const storageScope = process.env.YAADEIN_BLOB_SCOPE?.trim() || STORAGE_DEFAULT_SCOPE
 
   return {
     clientId,
@@ -33,6 +36,7 @@ export function getAuthPublicConfig(): AuthPublicConfig {
     scopes: [cosmosScope],
     graphScopes: ['User.Read'],
     cosmosScope,
+    storageScope,
     redirectUri: 'http://localhost',
   }
 }

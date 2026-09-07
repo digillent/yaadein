@@ -93,6 +93,27 @@ describe('DecisionRepository', () => {
     ).rejects.toThrow(/must not be written/)
     expect(store.upsert).not.toHaveBeenCalled()
   })
+
+  it('updateCloudSync patches status on an existing doc', async () => {
+    const store = createMockStore()
+    const repo = new DecisionRepository(store, () => 'oid-1')
+    await repo.upsertRejected({ contentHash: 'h1', fileSize: 3 })
+    store.readById = vi.fn(async () => ({
+      id: 'h1',
+      userId: 'oid-1',
+      contentHash: 'h1',
+      fileSize: 3,
+      decision: 'ACCEPTED' as const,
+      decidedAt: '2026-09-06T00:00:00.000Z',
+      cloudStatus: 'PENDING' as const,
+    }))
+    const updated = await repo.updateCloudSync('h1', {
+      cloudStatus: 'SYNCED',
+      cloudObjectId: 'oid-1/h1',
+    })
+    expect(updated.cloudStatus).toBe('SYNCED')
+    expect(updated.cloudObjectId).toBe('oid-1/h1')
+  })
 })
 
 describe('cosmosConfig', () => {

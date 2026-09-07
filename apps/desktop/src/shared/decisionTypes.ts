@@ -57,3 +57,12 @@ export type CosmosHarnessResult = {
   upserted: MediaDecisionDocument
   lookedUp: MediaDecisionDocument | null
 }
+
+export type AcceptUploadHarnessResult = {
+  userId: string
+  document: MediaDecisionDocument
+  blobUrl: string | null
+  cloudObjectId: string | null
+  statusTrail: CloudStatus[]
+  sourceMoved: false
+}

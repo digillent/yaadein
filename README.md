@@ -37,7 +37,7 @@ flowchart TD
   cosmosReject --> moveRejected
 ```
 
-Implementation follows [ROADMAP.md](ROADMAP.md). **Next: Milestone 6 — Blob via Entra user.** Set `apps/desktop/.env` from `.env.example` (Entra IDs + Cosms endpoint).
+Implementation follows [ROADMAP.md](ROADMAP.md). **Next: Milestone 7 — Scan and classify.** Set `apps/desktop/.env` from `.env.example` (Entra IDs + Cosms + Blob endpoints).
 
 ## Development
 

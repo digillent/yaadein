@@ -77,20 +77,9 @@ flowchart TD
 
 **Goal:** Upload accepted bytes to Blob with the user token; track `cloudStatus` through `SYNCED`.
 
-**In scope:**
+**Status:** Done.
 
-- Storage account + container for accepted media
-- Azure RBAC: user has **Storage Blob Data Contributor** (or tighter equivalent)
-- Desktop upload via Blob SDK + user token
-- Status: `NOT_REQUIRED` / `PENDING` / `UPLOADING` / `SYNCED` / `FAILED`
-- Update Cosms `cloudStatus` / `cloudObjectId` after success
-- Do not move into `preserve/` until `SYNCED` (wired in review milestone)
-
-**Out of scope:** Functions/SAS broker; full restore UX.
-
-**Expected tests:** Upload queue/status transitions with mocked Blob; failure leaves source unmoved when accept pipeline is wired.
-
-**Working state:** A selected accepted file can reach `SYNCED` in Blob + Cosms from the desktop app.
+**In scope (delivered):** Blob adapter + accept/upload pipeline (`PENDING` → `UPLOADING` → `SYNCED`/`FAILED`); Cosms `cloudStatus`/`cloudObjectId` updates; harness Accept+upload; never move to `preserve/` in M6; mocked upload tests. No Functions / no account keys.
 
 ---
 

@@ -76,6 +76,7 @@ describe('authConfig', () => {
         scopes: ['https://cosmos.azure.com/user_impersonation'],
         graphScopes: ['User.Read'],
         cosmosScope: 'https://cosmos.azure.com/user_impersonation',
+        storageScope: 'https://storage.azure.com/user_impersonation',
         redirectUri: 'http://localhost',
       }),
     ).toThrow(/required/)

@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { appName } from '../shared/appInfo'
 import type { MediaInspection, MediaTags } from '../shared/mediaTypes'
 import type { AuthSession, GraphMeProfile } from '../shared/authTypes'
-import type { CosmosHarnessResult } from '../shared/decisionTypes'
+import type { AcceptUploadHarnessResult, CosmosHarnessResult } from '../shared/decisionTypes'
 
 export type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
 
@@ -25,7 +25,14 @@ export type MoveMediaResult = {
   yearMonth: string
 }
 
-export type { MediaInspection, MediaTags, AuthSession, GraphMeProfile, CosmosHarnessResult }
+export type {
+  MediaInspection,
+  MediaTags,
+  AuthSession,
+  GraphMeProfile,
+  CosmosHarnessResult,
+  AcceptUploadHarnessResult,
+}
 
 const api = {
   appName,
@@ -46,6 +53,10 @@ const api = {
   fetchMe: (): Promise<GraphMeProfile> => ipcRenderer.invoke('auth:fetchMe'),
   cosmosHarnessRoundTrip: (): Promise<CosmosHarnessResult> =>
     ipcRenderer.invoke('cosmos:harnessRoundTrip'),
+  acceptAndUpload: (payload: {
+    sourcePath: string
+    captureDateIso?: string
+  }): Promise<AcceptUploadHarnessResult> => ipcRenderer.invoke('blob:acceptAndUpload', payload),
 }
 
 contextBridge.exposeInMainWorld('yaadein', api)

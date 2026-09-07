@@ -1,6 +1,7 @@
 import type { Container, CosmosClient } from '@azure/cosmos'
 import type {
   AcceptedDecisionInput,
+  CloudStatus,
   MediaDecisionDocument,
   RejectedDecisionInput,
 } from '../../shared/decisionTypes'
@@ -77,6 +78,22 @@ export class DecisionRepository {
   async upsertRejected(input: RejectedDecisionInput): Promise<MediaDecisionDocument> {
     const doc = buildRejectedDocument(this.getUserId(), input)
     return this.store.upsert(doc)
+  }
+
+  async updateCloudSync(
+    contentHash: string,
+    patch: { cloudStatus: CloudStatus; cloudObjectId?: string | null },
+  ): Promise<MediaDecisionDocument> {
+    const userId = this.getUserId()
+    const existing = await this.store.readById(contentHash, userId)
+    if (!existing) {
+      throw new Error(`Cannot update cloudStatus: no Cosms doc for hash ${contentHash}`)
+    }
+    return this.store.upsert({
+      ...existing,
+      cloudStatus: patch.cloudStatus,
+      ...(patch.cloudObjectId !== undefined ? { cloudObjectId: patch.cloudObjectId } : {}),
+    })
   }
 
   async upsertMany(
