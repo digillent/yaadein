@@ -1,12 +1,36 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { getShellTitle } from '@shared/appInfo'
-import type { MediaInspection } from '@shared/mediaTypes'
-import type { AuthSession, GraphMeProfile } from '@shared/authTypes'
-import type { AcceptUploadHarnessResult, CosmosHarnessResult } from '@shared/decisionTypes'
-import type { ScanClassifyResult, ScanProgress } from '@shared/scanTypes'
-import type { MediaPreview } from '@shared/reviewTypes'
-
-type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
+import { useAppDispatch, useAppSelector } from './store/hooks'
+import { sessionUpdated, meProfileUpdated, authClearedExtras } from './store/authSlice'
+import {
+  scanProgressUpdated,
+  scanStarted,
+  scanCompleted,
+  scanFailed,
+} from './store/scanSlice'
+import {
+  reviewQueueLoaded,
+  reviewAdvanced,
+  reviewIndexSet,
+  reviewPreviewUpdated,
+  selectCurrentReviewPath,
+} from './store/reviewSlice'
+import {
+  workingRootSet,
+  scanRootSet,
+  sourcePathSet,
+  moveBucketSet,
+  eventDateOverrideSet,
+  type WorkingBucket,
+} from './store/settingsSlice'
+import {
+  busySet,
+  statusSet,
+  inspectionSet,
+  cosmosHarnessSet,
+  blobHarnessSet,
+  harnessExtrasCleared,
+} from './store/uiSlice'
 
 /** Convert an HTML date input (YYYY-MM-DD) to an ISO instant for the move API. */
 function eventDateInputToIso(dateInput: string): string {
@@ -19,382 +43,424 @@ export default function App() {
       ? window.yaadein.appName
       : getShellTitle()
 
-  const [workingRoot, setWorkingRoot] = useState('')
-  const [sourcePath, setSourcePath] = useState('')
-  const [bucket, setBucket] = useState<WorkingBucket>('preserve')
-  const [eventDateOverride, setEventDateOverride] = useState('')
-  const [status, setStatus] = useState<string>('')
-  const [inspection, setInspection] = useState<MediaInspection | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [session, setSession] = useState<AuthSession | null>(null)
-  const [meProfile, setMeProfile] = useState<GraphMeProfile | null>(null)
-  const [cosmosHarness, setCosmosHarness] = useState<CosmosHarnessResult | null>(null)
-  const [blobHarness, setBlobHarness] = useState<AcceptUploadHarnessResult | null>(null)
-  const [scanRoot, setScanRoot] = useState('')
-  const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null)
-  const [scanResult, setScanResult] = useState<ScanClassifyResult | null>(null)
-  const [reviewQueue, setReviewQueue] = useState<string[]>([])
-  const [reviewIndex, setReviewIndex] = useState(0)
-  const [preview, setPreview] = useState<MediaPreview | null>(null)
+  const dispatch = useAppDispatch()
+  const session = useAppSelector((s) => s.auth.session)
+  const meProfile = useAppSelector((s) => s.auth.meProfile)
+  const { workingRoot, scanRoot, sourcePath, moveBucket, eventDateOverride } = useAppSelector(
+    (s) => s.settings,
+  )
+  const scanProgress = useAppSelector((s) => s.scan.progress)
+  const scanResult = useAppSelector((s) => s.scan.lastResult)
+  const reviewQueue = useAppSelector((s) => s.review.queue)
+  const reviewIndex = useAppSelector((s) => s.review.index)
+  const preview = useAppSelector((s) => s.review.preview)
+  const currentReviewPath = useAppSelector(selectCurrentReviewPath)
+  const busy = useAppSelector((s) => s.ui.busy)
+  const status = useAppSelector((s) => s.ui.status)
+  const inspection = useAppSelector((s) => s.ui.inspection)
+  const cosmosHarness = useAppSelector((s) => s.ui.cosmosHarness)
+  const blobHarness = useAppSelector((s) => s.ui.blobHarness)
 
   useEffect(() => {
-    void window.yaadein.getAuthSession().then(setSession).catch(() => {
-      setSession({
-        signedIn: false,
-        accountName: null,
-        username: null,
-        homeAccountId: null,
-        userId: null,
-      })
-    })
-  }, [])
+    void window.yaadein.getAuthSession().then(
+      (next) => dispatch(sessionUpdated(next)),
+      () =>
+        dispatch(
+          sessionUpdated({
+            signedIn: false,
+            accountName: null,
+            username: null,
+            homeAccountId: null,
+            userId: null,
+          }),
+        ),
+    )
+  }, [dispatch])
 
   useEffect(() => {
     return window.yaadein.onScanProgress((progress) => {
-      setScanProgress(progress)
+      dispatch(scanProgressUpdated(progress))
     })
-  }, [])
-
-  const currentReviewPath = reviewQueue[reviewIndex] ?? null
+  }, [dispatch])
 
   useEffect(() => {
     if (!currentReviewPath) {
-      setPreview(null)
+      dispatch(reviewPreviewUpdated(null))
       return
     }
     let cancelled = false
     void window.yaadein.previewMedia(currentReviewPath).then(
       (next) => {
         if (!cancelled) {
-          setPreview(next)
+          dispatch(reviewPreviewUpdated(next))
         }
       },
       (error: unknown) => {
         if (!cancelled) {
-          setPreview(null)
-          setStatus(error instanceof Error ? error.message : String(error))
+          dispatch(reviewPreviewUpdated(null))
+          dispatch(statusSet(error instanceof Error ? error.message : String(error)))
         }
       },
     )
     return () => {
       cancelled = true
     }
-  }, [currentReviewPath])
+  }, [currentReviewPath, dispatch])
+
+  async function withBusy(run: () => Promise<void>): Promise<void> {
+    dispatch(busySet(true))
+    try {
+      await run()
+    } finally {
+      dispatch(busySet(false))
+    }
+  }
 
   async function chooseWorkingRoot(): Promise<void> {
     const path = await window.yaadein.pickWorkingDirectory()
     if (path) {
-      setWorkingRoot(path)
-      setStatus(`Working folder: ${path}`)
+      dispatch(workingRootSet(path))
+      dispatch(statusSet(`Working folder: ${path}`))
     }
   }
 
   async function ensureTree(): Promise<void> {
     if (!workingRoot) {
-      setStatus('Choose a working folder first.')
+      dispatch(statusSet('Choose a working folder first.'))
       return
     }
-    setBusy(true)
-    try {
-      await window.yaadein.ensureWorkingFolder(workingRoot)
-      setStatus(`Ensured preserve / duplicate / rejected under ${workingRoot}`)
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error))
-    } finally {
-      setBusy(false)
-    }
+    await withBusy(async () => {
+      try {
+        await window.yaadein.ensureWorkingFolder(workingRoot)
+        dispatch(statusSet(`Ensured preserve / duplicate / rejected under ${workingRoot}`))
+      } catch (error) {
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+      }
+    })
   }
 
   async function chooseSource(): Promise<void> {
     const path = await window.yaadein.pickSourceFile()
     if (path) {
-      setSourcePath(path)
-      setInspection(null)
-      setStatus(`Source: ${path}`)
+      dispatch(sourcePathSet(path))
+      dispatch(inspectionSet(null))
+      dispatch(statusSet(`Source: ${path}`))
     }
   }
 
   async function inspectSource(): Promise<void> {
     if (!sourcePath) {
-      setStatus('Choose a source file first.')
+      dispatch(statusSet('Choose a source file first.'))
       return
     }
-    setBusy(true)
-    try {
-      const result = await window.yaadein.inspectMedia({
-        sourcePath,
-        ...(eventDateOverride
-          ? { captureDateIso: eventDateInputToIso(eventDateOverride) }
-          : {}),
-      })
-      setInspection(result)
-      setStatus(
-        `Inspected ${result.originalFilename}: ${result.contentHash.slice(0, 12)}… (${result.organizeDateSource})`,
-      )
-    } catch (error) {
-      setInspection(null)
-      setStatus(error instanceof Error ? error.message : String(error))
-    } finally {
-      setBusy(false)
-    }
+    await withBusy(async () => {
+      try {
+        const result = await window.yaadein.inspectMedia({
+          sourcePath,
+          ...(eventDateOverride
+            ? { captureDateIso: eventDateInputToIso(eventDateOverride) }
+            : {}),
+        })
+        dispatch(inspectionSet(result))
+        dispatch(
+          statusSet(
+            `Inspected ${result.originalFilename}: ${result.contentHash.slice(0, 12)}… (${result.organizeDateSource})`,
+          ),
+        )
+      } catch (error) {
+        dispatch(inspectionSet(null))
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+      }
+    })
   }
 
   async function moveSample(): Promise<void> {
     if (!workingRoot || !sourcePath) {
-      setStatus('Choose a working folder and a source file first.')
+      dispatch(statusSet('Choose a working folder and a source file first.'))
       return
     }
-    setBusy(true)
-    try {
-      const result = await window.yaadein.moveMedia({
-        sourcePath,
-        workingRoot,
-        bucket,
-        nameDisambiguator: 'devmove',
-        ...(eventDateOverride
-          ? { captureDateIso: eventDateInputToIso(eventDateOverride) }
-          : {}),
-      })
-      setSourcePath('')
-      setInspection(null)
-      setStatus(
-        `Moved to ${result.destinationPath} (${result.yearMonth})${
-          eventDateOverride ? ' [event date override]' : ' [auto date]'
-        }`,
-      )
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error))
-    } finally {
-      setBusy(false)
-    }
+    await withBusy(async () => {
+      try {
+        const result = await window.yaadein.moveMedia({
+          sourcePath,
+          workingRoot,
+          bucket: moveBucket,
+          nameDisambiguator: 'devmove',
+          ...(eventDateOverride
+            ? { captureDateIso: eventDateInputToIso(eventDateOverride) }
+            : {}),
+        })
+        dispatch(sourcePathSet(''))
+        dispatch(inspectionSet(null))
+        dispatch(
+          statusSet(
+            `Moved to ${result.destinationPath} (${result.yearMonth})${
+              eventDateOverride ? ' [event date override]' : ' [auto date]'
+            }`,
+          ),
+        )
+      } catch (error) {
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+      }
+    })
   }
 
   async function signIn(): Promise<void> {
-    setBusy(true)
-    try {
-      const next = await window.yaadein.signIn()
-      setSession(next)
-      setMeProfile(null)
-      setCosmosHarness(null)
-      setBlobHarness(null)
-      setStatus(next.signedIn ? `Signed in as ${next.username ?? next.accountName}` : 'Signed out')
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error))
-    } finally {
-      setBusy(false)
-    }
+    await withBusy(async () => {
+      try {
+        const next = await window.yaadein.signIn()
+        dispatch(sessionUpdated(next))
+        dispatch(authClearedExtras())
+        dispatch(harnessExtrasCleared())
+        dispatch(
+          statusSet(next.signedIn ? `Signed in as ${next.username ?? next.accountName}` : 'Signed out'),
+        )
+      } catch (error) {
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+      }
+    })
   }
 
   async function signOut(): Promise<void> {
-    setBusy(true)
-    try {
-      const next = await window.yaadein.signOut()
-      setSession(next)
-      setMeProfile(null)
-      setCosmosHarness(null)
-      setBlobHarness(null)
-      setStatus('Signed out')
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error))
-    } finally {
-      setBusy(false)
-    }
+    await withBusy(async () => {
+      try {
+        const next = await window.yaadein.signOut()
+        dispatch(sessionUpdated(next))
+        dispatch(authClearedExtras())
+        dispatch(harnessExtrasCleared())
+        dispatch(statusSet('Signed out'))
+      } catch (error) {
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+      }
+    })
   }
 
   async function callMe(): Promise<void> {
-    setBusy(true)
-    try {
-      const profile = await window.yaadein.fetchMe()
-      setMeProfile(profile)
-      setStatus(`Graph /me: ${profile.displayName ?? profile.userPrincipalName ?? profile.id}`)
-    } catch (error) {
-      setMeProfile(null)
-      setStatus(error instanceof Error ? error.message : String(error))
-    } finally {
-      setBusy(false)
-    }
+    await withBusy(async () => {
+      try {
+        const profile = await window.yaadein.fetchMe()
+        dispatch(meProfileUpdated(profile))
+        dispatch(
+          statusSet(`Graph /me: ${profile.displayName ?? profile.userPrincipalName ?? profile.id}`),
+        )
+      } catch (error) {
+        dispatch(meProfileUpdated(null))
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+      }
+    })
   }
 
   async function runCosmosHarness(): Promise<void> {
-    setBusy(true)
-    try {
-      const result = await window.yaadein.cosmosHarnessRoundTrip()
-      setCosmosHarness(result)
-      setStatus(
-        result.lookedUp
-          ? `Cosmos OK: upserted+looked up ${result.upserted.contentHash.slice(0, 12)}…`
-          : `Cosmos upsert OK but lookup missed ${result.upserted.contentHash.slice(0, 12)}…`,
-      )
-    } catch (error) {
-      setCosmosHarness(null)
-      setStatus(error instanceof Error ? error.message : String(error))
-    } finally {
-      setBusy(false)
-    }
+    await withBusy(async () => {
+      try {
+        const result = await window.yaadein.cosmosHarnessRoundTrip()
+        dispatch(cosmosHarnessSet(result))
+        dispatch(
+          statusSet(
+            result.lookedUp
+              ? `Cosmos OK: upserted+looked up ${result.upserted.contentHash.slice(0, 12)}…`
+              : `Cosmos upsert OK but lookup missed ${result.upserted.contentHash.slice(0, 12)}…`,
+          ),
+        )
+      } catch (error) {
+        dispatch(cosmosHarnessSet(null))
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+      }
+    })
   }
 
   async function runAcceptUpload(): Promise<void> {
     if (!sourcePath) {
-      setStatus('Choose a source file first.')
+      dispatch(statusSet('Choose a source file first.'))
       return
     }
-    setBusy(true)
-    try {
-      const result = await window.yaadein.acceptAndUpload({
-        sourcePath,
-        ...(eventDateOverride
-          ? { captureDateIso: eventDateInputToIso(eventDateOverride) }
-          : {}),
-      })
-      setBlobHarness(result)
-      setStatus(
-        `Accept+upload ${result.document.cloudStatus}: ${result.cloudObjectId ?? 'no blob id'} (source not moved)`,
-      )
-    } catch (error) {
-      setBlobHarness(null)
-      setStatus(error instanceof Error ? error.message : String(error))
-    } finally {
-      setBusy(false)
-    }
+    await withBusy(async () => {
+      try {
+        const result = await window.yaadein.acceptAndUpload({
+          sourcePath,
+          ...(eventDateOverride
+            ? { captureDateIso: eventDateInputToIso(eventDateOverride) }
+            : {}),
+        })
+        dispatch(blobHarnessSet(result))
+        dispatch(
+          statusSet(
+            `Accept+upload ${result.document.cloudStatus}: ${result.cloudObjectId ?? 'no blob id'} (source not moved)`,
+          ),
+        )
+      } catch (error) {
+        dispatch(blobHarnessSet(null))
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+      }
+    })
   }
 
   async function chooseScanRoot(): Promise<void> {
     const path = await window.yaadein.pickWorkingDirectory()
     if (path) {
-      setScanRoot(path)
-      setStatus(`Scan root: ${path}`)
+      dispatch(scanRootSet(path))
+      dispatch(statusSet(`Scan root: ${path}`))
     }
   }
 
   async function runScan(): Promise<void> {
-    if (!session?.signedIn) {
-      setStatus('Sign in required to scan.')
+    if (!session.signedIn) {
+      dispatch(statusSet('Sign in required to scan.'))
       return
     }
     if (!workingRoot || !scanRoot) {
-      setStatus('Choose a working folder and a scan root first.')
+      dispatch(statusSet('Choose a working folder and a scan root first.'))
       return
     }
-    setBusy(true)
-    setScanResult(null)
-    try {
-      const result = await window.yaadein.runScan({
-        scanRoots: [scanRoot],
-        workingRoot,
-      })
-      setScanResult(result)
-      const unknowns = result.results
-        .filter((item) => item.outcome === 'skipped_unknown')
-        .map((item) => item.sourcePath)
-      setReviewQueue(unknowns)
-      setReviewIndex(0)
-      setStatus(
-        `Scan done: ${result.movedRejected} rejected, ${result.movedDuplicate} duplicate, ${result.skippedUnknown} unknown, ${result.errors} errors`,
-      )
-    } catch (error) {
-      setScanResult(null)
-      setStatus(error instanceof Error ? error.message : String(error))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  function advanceReviewQueue(): void {
-    const next = reviewQueue.filter((_, index) => index !== reviewIndex)
-    setReviewQueue(next)
-    setReviewIndex((index) => (next.length === 0 ? 0 : Math.min(index, next.length - 1)))
+    await withBusy(async () => {
+      dispatch(scanStarted())
+      try {
+        const result = await window.yaadein.runScan({
+          scanRoots: [scanRoot],
+          workingRoot,
+        })
+        dispatch(scanCompleted(result))
+        const unknowns = result.results
+          .filter((item) => item.outcome === 'skipped_unknown')
+          .map((item) => item.sourcePath)
+        dispatch(reviewQueueLoaded(unknowns))
+        dispatch(
+          statusSet(
+            `Scan done: ${result.movedRejected} rejected, ${result.movedDuplicate} duplicate, ${result.skippedUnknown} unknown, ${result.errors} errors`,
+          ),
+        )
+      } catch (error) {
+        dispatch(scanFailed())
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+      }
+    })
   }
 
   async function acceptCurrent(): Promise<void> {
     if (!currentReviewPath || !workingRoot) {
-      setStatus('Need a review item and working folder.')
+      dispatch(statusSet('Need a review item and working folder.'))
       return
     }
-    setBusy(true)
-    try {
-      const result = await window.yaadein.reviewAccept({
-        sourcePath: currentReviewPath,
-        workingRoot,
-        ...(eventDateOverride
-          ? { captureDateIso: eventDateInputToIso(eventDateOverride) }
-          : {}),
-      })
-      setStatus(`Accepted → SYNCED → preserve/: ${result.destinationPath}`)
-      advanceReviewQueue()
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error))
-    } finally {
-      setBusy(false)
-    }
+    await withBusy(async () => {
+      try {
+        const result = await window.yaadein.reviewAccept({
+          sourcePath: currentReviewPath,
+          workingRoot,
+          ...(eventDateOverride
+            ? { captureDateIso: eventDateInputToIso(eventDateOverride) }
+            : {}),
+        })
+        dispatch(statusSet(`Accepted → SYNCED → preserve/: ${result.destinationPath}`))
+        dispatch(reviewAdvanced())
+      } catch (error) {
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+      }
+    })
   }
 
   async function rejectCurrent(): Promise<void> {
     if (!currentReviewPath || !workingRoot) {
-      setStatus('Need a review item and working folder.')
+      dispatch(statusSet('Need a review item and working folder.'))
       return
     }
-    setBusy(true)
-    try {
-      const result = await window.yaadein.reviewReject({
-        sourcePath: currentReviewPath,
-        workingRoot,
-        ...(eventDateOverride
-          ? { captureDateIso: eventDateInputToIso(eventDateOverride) }
-          : {}),
-      })
-      setStatus(`Rejected → rejected/: ${result.destinationPath}`)
-      advanceReviewQueue()
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error))
-    } finally {
-      setBusy(false)
-    }
+    await withBusy(async () => {
+      try {
+        const result = await window.yaadein.reviewReject({
+          sourcePath: currentReviewPath,
+          workingRoot,
+          ...(eventDateOverride
+            ? { captureDateIso: eventDateInputToIso(eventDateOverride) }
+            : {}),
+        })
+        dispatch(statusSet(`Rejected → rejected/: ${result.destinationPath}`))
+        dispatch(reviewAdvanced())
+      } catch (error) {
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+      }
+    })
   }
 
   return (
     <main className="shell">
-      <h1>{title}</h1>
-      <p className="tagline">Clear digital clutter and preserve the memories that matter.</p>
-
-      <section className="devPanel" aria-label="Auth harness">
-        <h2>Sign-in (Entra + PKCE)</h2>
-        <p className="hint">
-          Sign-in requests the Cosms delegated scope. Storage uses a separate token on upload.
-          Cosms harness writes a lean REJECTED sample; Accept+upload writes ACCEPTED and syncs Blob
-          (does not move into preserve/).
+      <header className="appHeader">
+        <div>
+          <h1>{title}</h1>
+          <p className="tagline">Clear digital clutter and preserve the memories that matter.</p>
+        </div>
+        <p className="statusBar" role="status">
+          {busy ? 'Working… · ' : ''}
+          {session.signedIn
+            ? `Signed in: ${session.username ?? session.accountName ?? 'account'}`
+            : 'Not signed in'}
+          {status ? ` · ${status}` : ''}
         </p>
+      </header>
+
+      <section className="devPanel" aria-label="Settings">
+        <h2>Settings</h2>
+        <p className="hint">Working folder and scan root used by classify, review, and moves.</p>
+        <div className="row">
+          <button type="button" disabled={busy} onClick={() => void chooseWorkingRoot()}>
+            Choose working folder
+          </button>
+          <button type="button" disabled={busy || !workingRoot} onClick={() => void ensureTree()}>
+            Ensure folders
+          </button>
+          <button type="button" disabled={busy} onClick={() => void chooseScanRoot()}>
+            Choose scan folder
+          </button>
+        </div>
+        <p className="status" role="status">
+          Working: {workingRoot || '—'}
+          <br />
+          Scan: {scanRoot || '—'}
+        </p>
+        <div className="row">
+          <label className="bucket">
+            Event date override
+            <input
+              type="date"
+              value={eventDateOverride}
+              disabled={busy}
+              onChange={(event) => dispatch(eventDateOverrideSet(event.target.value))}
+            />
+          </label>
+          {eventDateOverride ? (
+            <button type="button" disabled={busy} onClick={() => dispatch(eventDateOverrideSet(''))}>
+              Clear override
+            </button>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="devPanel" aria-label="Auth">
+        <h2>Sign-in</h2>
+        <p className="hint">Entra PKCE. Cosms/Storage use separate resource tokens when needed.</p>
         <div className="row">
           <button type="button" disabled={busy} onClick={() => void signIn()}>
             Sign in
           </button>
-          <button type="button" disabled={busy || !session?.signedIn} onClick={() => void signOut()}>
+          <button type="button" disabled={busy || !session.signedIn} onClick={() => void signOut()}>
             Sign out
           </button>
-          <button type="button" disabled={busy || !session?.signedIn} onClick={() => void callMe()}>
+          <button type="button" disabled={busy || !session.signedIn} onClick={() => void callMe()}>
             Call Graph /me
           </button>
           <button
             type="button"
-            disabled={busy || !session?.signedIn}
+            disabled={busy || !session.signedIn}
             onClick={() => void runCosmosHarness()}
           >
             Cosms upsert + lookup
           </button>
           <button
             type="button"
-            disabled={busy || !session?.signedIn || !sourcePath}
+            disabled={busy || !session.signedIn || !sourcePath}
             onClick={() => void runAcceptUpload()}
           >
             Accept + upload Blob
           </button>
         </div>
-        <p className="status" role="status">
-          {session?.signedIn
-            ? `Signed in: ${session.username ?? session.accountName ?? 'account'}${
-                session.userId ? ` (oid ${session.userId.slice(0, 8)}…)` : ''
-              }`
-            : 'Not signed in'}
-        </p>
         {meProfile ? <pre className="inspection">{JSON.stringify(meProfile, null, 2)}</pre> : null}
         {cosmosHarness ? (
           <pre className="inspection">{JSON.stringify(cosmosHarness, null, 2)}</pre>
@@ -402,51 +468,44 @@ export default function App() {
         {blobHarness ? <pre className="inspection">{JSON.stringify(blobHarness, null, 2)}</pre> : null}
       </section>
 
-      <section className="devPanel" aria-label="Scan classify harness">
-        <h2>Scan + classify (Cosmos)</h2>
+      <section className="devPanel" aria-label="Scan">
+        <h2>Scan + classify</h2>
         <p className="hint">
-          Walk a folder, size-group peer candidates, hash, batch-lookup Cosms. REJECTED → rejected/;
-          ACCEPTED or same-hash scan peer → duplicate/ (no Cosms DUPLICATE doc); unknowns stay for
-          review.
+          Progress and results live in Redux. Unknowns load into the review queue.
         </p>
         <div className="row">
-          <button type="button" disabled={busy} onClick={() => void chooseScanRoot()}>
-            Choose scan folder
-          </button>
           <button
             type="button"
-            disabled={busy || !session?.signedIn || !workingRoot || !scanRoot}
+            disabled={busy || !session.signedIn || !workingRoot || !scanRoot}
             onClick={() => void runScan()}
           >
             Run scan
           </button>
         </div>
         <p className="status" role="status">
-          {scanRoot ? `Scan root: ${scanRoot}` : 'No scan folder selected.'}
           {scanProgress
-            ? ` · ${scanProgress.phase} ${scanProgress.filesProcessed}/${scanProgress.filesFound}`
-            : ''}
+            ? `${scanProgress.phase}: ${scanProgress.filesProcessed}/${scanProgress.filesFound} · rejected ${scanProgress.movedRejected} · duplicate ${scanProgress.movedDuplicate} · unknown ${scanProgress.skippedUnknown}`
+            : 'No scan in progress.'}
         </p>
         {scanResult ? <pre className="inspection">{JSON.stringify(scanResult, null, 2)}</pre> : null}
       </section>
 
-      <section className="devPanel" aria-label="Review unknowns harness">
-        <h2>Review unknowns</h2>
+      <section className="devPanel" aria-label="Review queue">
+        <h2>Review queue</h2>
         <p className="hint">
-          Queue fills from scan unknowns. Reject → Cosms lean → rejected/. Accept → Cosms + Blob
-          SYNCED → then preserve/. Upload failure leaves the source in place for retry.
+          Accept → Cosms + Blob SYNCED → preserve/. Reject → Cosms lean → rejected/.
         </p>
         <div className="row">
           <button
             type="button"
-            disabled={busy || !session?.signedIn || !currentReviewPath || !workingRoot}
+            disabled={busy || !session.signedIn || !currentReviewPath || !workingRoot}
             onClick={() => void acceptCurrent()}
           >
             Accept → preserve
           </button>
           <button
             type="button"
-            disabled={busy || !session?.signedIn || !currentReviewPath || !workingRoot}
+            disabled={busy || !session.signedIn || !currentReviewPath || !workingRoot}
             onClick={() => void rejectCurrent()}
           >
             Reject → rejected
@@ -454,17 +513,15 @@ export default function App() {
           <button
             type="button"
             disabled={busy || reviewQueue.length === 0}
-            onClick={() =>
-              setReviewIndex((index) => (reviewQueue.length === 0 ? 0 : (index + 1) % reviewQueue.length))
-            }
+            onClick={() => dispatch(reviewIndexSet(reviewIndex + 1))}
           >
             Next in queue
           </button>
         </div>
         <p className="status" role="status">
           {reviewQueue.length === 0
-            ? 'Review queue empty — run scan to load unknowns.'
-            : `Review ${reviewIndex + 1}/${reviewQueue.length}: ${currentReviewPath}`}
+            ? 'Queue empty — run scan to load unknowns.'
+            : `${reviewIndex + 1}/${reviewQueue.length}: ${currentReviewPath}`}
         </p>
         {preview?.dataUrl ? (
           <img
@@ -474,26 +531,13 @@ export default function App() {
             style={{ maxWidth: '100%', maxHeight: 360, objectFit: 'contain' }}
           />
         ) : currentReviewPath ? (
-          <p className="hint">No image preview (video or large file). Path is still reviewable.</p>
+          <p className="hint">No image preview (video or large file).</p>
         ) : null}
       </section>
 
-      <section className="devPanel" aria-label="Working folder harness">
-        <h2>Working folder + media inspect</h2>
-        <p className="hint">
-          Organize date: user override → EXIF → oldest filesystem time. Inspect returns SHA-256,
-          size, metadata, and tags.
-        </p>
-
-        <div className="row">
-          <button type="button" disabled={busy} onClick={() => void chooseWorkingRoot()}>
-            Choose working folder
-          </button>
-          <button type="button" disabled={busy || !workingRoot} onClick={() => void ensureTree()}>
-            Ensure folders
-          </button>
-        </div>
-
+      <section className="devPanel" aria-label="Media tools">
+        <h2>Media tools</h2>
+        <p className="hint">Inspect and manual move helpers for development.</p>
         <div className="row">
           <button type="button" disabled={busy} onClick={() => void chooseSource()}>
             Choose source file
@@ -504,29 +548,15 @@ export default function App() {
           <label className="bucket">
             Bucket
             <select
-              value={bucket}
+              value={moveBucket}
               disabled={busy}
-              onChange={(event) => setBucket(event.target.value as WorkingBucket)}
+              onChange={(event) => dispatch(moveBucketSet(event.target.value as WorkingBucket))}
             >
               <option value="preserve">preserve</option>
               <option value="duplicate">duplicate</option>
               <option value="rejected">rejected</option>
             </select>
           </label>
-          <label className="bucket">
-            Event date override
-            <input
-              type="date"
-              value={eventDateOverride}
-              disabled={busy}
-              onChange={(event) => setEventDateOverride(event.target.value)}
-            />
-          </label>
-          {eventDateOverride ? (
-            <button type="button" disabled={busy} onClick={() => setEventDateOverride('')}>
-              Clear override
-            </button>
-          ) : null}
           <button
             type="button"
             disabled={busy || !workingRoot || !sourcePath}
@@ -535,14 +565,7 @@ export default function App() {
             Move file
           </button>
         </div>
-
-        <p className="status" role="status">
-          {status || 'No action yet.'}
-        </p>
-
-        {inspection ? (
-          <pre className="inspection">{JSON.stringify(inspection, null, 2)}</pre>
-        ) : null}
+        {inspection ? <pre className="inspection">{JSON.stringify(inspection, null, 2)}</pre> : null}
       </section>
     </main>
   )

@@ -117,6 +117,10 @@ flowchart TD
 
 **Goal:** Polished UI state for progress, review queues, auth, settings.
 
+**Status:** Done.
+
+**In scope (delivered):** Redux Toolkit store (`auth`, `settings`, `scan`, `review`, `ui`); status bar; settings panel; scan progress + review queue from store; reducer unit tests. Cosms remains source of truth for decisions (not mirrored into Redux).
+
 ---
 
 ## Milestone 11 — Local cleanup of rejected and duplicates
