@@ -3,6 +3,7 @@ import { appName } from '../shared/appInfo'
 import type { MediaInspection, MediaTags } from '../shared/mediaTypes'
 import type { AuthSession, GraphMeProfile } from '../shared/authTypes'
 import type { AcceptUploadHarnessResult, CosmosHarnessResult } from '../shared/decisionTypes'
+import type { ScanClassifyRequest, ScanClassifyResult, ScanProgress } from '../shared/scanTypes'
 
 export type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
 
@@ -32,6 +33,9 @@ export type {
   GraphMeProfile,
   CosmosHarnessResult,
   AcceptUploadHarnessResult,
+  ScanClassifyRequest,
+  ScanClassifyResult,
+  ScanProgress,
 }
 
 const api = {
@@ -57,6 +61,17 @@ const api = {
     sourcePath: string
     captureDateIso?: string
   }): Promise<AcceptUploadHarnessResult> => ipcRenderer.invoke('blob:acceptAndUpload', payload),
+  runScan: (payload: ScanClassifyRequest): Promise<ScanClassifyResult> =>
+    ipcRenderer.invoke('scan:run', payload),
+  onScanProgress: (listener: (progress: ScanProgress) => void): (() => void) => {
+    const handler = (_event: unknown, progress: ScanProgress): void => {
+      listener(progress)
+    }
+    ipcRenderer.on('scan:progress', handler)
+    return () => {
+      ipcRenderer.removeListener('scan:progress', handler)
+    }
+  },
 }
 
 contextBridge.exposeInMainWorld('yaadein', api)

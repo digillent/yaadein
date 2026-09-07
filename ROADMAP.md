@@ -87,13 +87,9 @@ flowchart TD
 
 **Goal:** Scan folders, hash files, batch-lookup Cosms, auto-move known decisions, skip unknowns.
 
-**In scope:** Folder roots; walk media; batch Cosms lookup; rejected → `rejected/`; accepted → `duplicate/`; skip unknown; require sign-in + network; progress events.
+**Status:** Done.
 
-**Out of scope:** Review UI; Blob during scan.
-
-**Expected tests:** Fixture tree + mocked Cosms; offline/unauthenticated fails closed.
-
-**Working state:** Signed-in scan organizes known files from Cosms decisions.
+**In scope (delivered):** Media walk; batch Cosms lookup; REJECTED → `rejected/`; ACCEPTED → `duplicate/`; unknowns skipped; sign-in + network required (fails closed); progress events; harness + fixture tests. No Blob during scan; no review UI.
 
 ---
 

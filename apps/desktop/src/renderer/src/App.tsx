@@ -3,6 +3,7 @@ import { getShellTitle } from '@shared/appInfo'
 import type { MediaInspection } from '@shared/mediaTypes'
 import type { AuthSession, GraphMeProfile } from '@shared/authTypes'
 import type { AcceptUploadHarnessResult, CosmosHarnessResult } from '@shared/decisionTypes'
+import type { ScanClassifyResult, ScanProgress } from '@shared/scanTypes'
 
 type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
 
@@ -28,6 +29,9 @@ export default function App() {
   const [meProfile, setMeProfile] = useState<GraphMeProfile | null>(null)
   const [cosmosHarness, setCosmosHarness] = useState<CosmosHarnessResult | null>(null)
   const [blobHarness, setBlobHarness] = useState<AcceptUploadHarnessResult | null>(null)
+  const [scanRoot, setScanRoot] = useState('')
+  const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null)
+  const [scanResult, setScanResult] = useState<ScanClassifyResult | null>(null)
 
   useEffect(() => {
     void window.yaadein.getAuthSession().then(setSession).catch(() => {
@@ -38,6 +42,12 @@ export default function App() {
         homeAccountId: null,
         userId: null,
       })
+    })
+  }, [])
+
+  useEffect(() => {
+    return window.yaadein.onScanProgress((progress) => {
+      setScanProgress(progress)
     })
   }, [])
 
@@ -218,6 +228,42 @@ export default function App() {
     }
   }
 
+  async function chooseScanRoot(): Promise<void> {
+    const path = await window.yaadein.pickWorkingDirectory()
+    if (path) {
+      setScanRoot(path)
+      setStatus(`Scan root: ${path}`)
+    }
+  }
+
+  async function runScan(): Promise<void> {
+    if (!session?.signedIn) {
+      setStatus('Sign in required to scan.')
+      return
+    }
+    if (!workingRoot || !scanRoot) {
+      setStatus('Choose a working folder and a scan root first.')
+      return
+    }
+    setBusy(true)
+    setScanResult(null)
+    try {
+      const result = await window.yaadein.runScan({
+        scanRoots: [scanRoot],
+        workingRoot,
+      })
+      setScanResult(result)
+      setStatus(
+        `Scan done: ${result.movedRejected} rejected, ${result.movedDuplicate} duplicate, ${result.skippedUnknown} unknown, ${result.errors} errors`,
+      )
+    } catch (error) {
+      setScanResult(null)
+      setStatus(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <main className="shell">
       <h1>{title}</h1>
@@ -267,6 +313,33 @@ export default function App() {
           <pre className="inspection">{JSON.stringify(cosmosHarness, null, 2)}</pre>
         ) : null}
         {blobHarness ? <pre className="inspection">{JSON.stringify(blobHarness, null, 2)}</pre> : null}
+      </section>
+
+      <section className="devPanel" aria-label="Scan classify harness">
+        <h2>Scan + classify (Cosmos)</h2>
+        <p className="hint">
+          Walk a folder, hash media, batch-lookup Cosms. Known REJECTED → rejected/; known ACCEPTED →
+          duplicate/; unknowns stay for review (M8). Requires sign-in + network. No Blob during scan.
+        </p>
+        <div className="row">
+          <button type="button" disabled={busy} onClick={() => void chooseScanRoot()}>
+            Choose scan folder
+          </button>
+          <button
+            type="button"
+            disabled={busy || !session?.signedIn || !workingRoot || !scanRoot}
+            onClick={() => void runScan()}
+          >
+            Run scan
+          </button>
+        </div>
+        <p className="status" role="status">
+          {scanRoot ? `Scan root: ${scanRoot}` : 'No scan folder selected.'}
+          {scanProgress
+            ? ` · ${scanProgress.phase} ${scanProgress.filesProcessed}/${scanProgress.filesFound}`
+            : ''}
+        </p>
+        {scanResult ? <pre className="inspection">{JSON.stringify(scanResult, null, 2)}</pre> : null}
       </section>
 
       <section className="devPanel" aria-label="Working folder harness">
