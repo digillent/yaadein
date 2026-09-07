@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { getShellTitle } from '@shared/appInfo'
 import type { MediaInspection } from '@shared/mediaTypes'
 import type { AuthSession, GraphMeProfile } from '@shared/authTypes'
-import type { CosmosHarnessResult } from '@shared/decisionTypes'
+import type { AcceptUploadHarnessResult, CosmosHarnessResult } from '@shared/decisionTypes'
 
 type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
 
@@ -27,6 +27,7 @@ export default function App() {
   const [session, setSession] = useState<AuthSession | null>(null)
   const [meProfile, setMeProfile] = useState<GraphMeProfile | null>(null)
   const [cosmosHarness, setCosmosHarness] = useState<CosmosHarnessResult | null>(null)
+  const [blobHarness, setBlobHarness] = useState<AcceptUploadHarnessResult | null>(null)
 
   useEffect(() => {
     void window.yaadein.getAuthSession().then(setSession).catch(() => {
@@ -135,6 +136,7 @@ export default function App() {
       setSession(next)
       setMeProfile(null)
       setCosmosHarness(null)
+      setBlobHarness(null)
       setStatus(next.signedIn ? `Signed in as ${next.username ?? next.accountName}` : 'Signed out')
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error))
@@ -150,6 +152,7 @@ export default function App() {
       setSession(next)
       setMeProfile(null)
       setCosmosHarness(null)
+      setBlobHarness(null)
       setStatus('Signed out')
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error))
@@ -190,6 +193,31 @@ export default function App() {
     }
   }
 
+  async function runAcceptUpload(): Promise<void> {
+    if (!sourcePath) {
+      setStatus('Choose a source file first.')
+      return
+    }
+    setBusy(true)
+    try {
+      const result = await window.yaadein.acceptAndUpload({
+        sourcePath,
+        ...(eventDateOverride
+          ? { captureDateIso: eventDateInputToIso(eventDateOverride) }
+          : {}),
+      })
+      setBlobHarness(result)
+      setStatus(
+        `Accept+upload ${result.document.cloudStatus}: ${result.cloudObjectId ?? 'no blob id'} (source not moved)`,
+      )
+    } catch (error) {
+      setBlobHarness(null)
+      setStatus(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <main className="shell">
       <h1>{title}</h1>
@@ -198,8 +226,9 @@ export default function App() {
       <section className="devPanel" aria-label="Auth harness">
         <h2>Sign-in (Entra + PKCE)</h2>
         <p className="hint">
-          Sign-in requests the Cosms delegated scope. Tokens stay in the main process. Graph /me
-          uses a separate Graph token; Cosms harness upserts/looks up a lean REJECTED sample.
+          Sign-in requests the Cosms delegated scope. Storage uses a separate token on upload.
+          Cosms harness writes a lean REJECTED sample; Accept+upload writes ACCEPTED and syncs Blob
+          (does not move into preserve/).
         </p>
         <div className="row">
           <button type="button" disabled={busy} onClick={() => void signIn()}>
@@ -218,6 +247,13 @@ export default function App() {
           >
             Cosms upsert + lookup
           </button>
+          <button
+            type="button"
+            disabled={busy || !session?.signedIn || !sourcePath}
+            onClick={() => void runAcceptUpload()}
+          >
+            Accept + upload Blob
+          </button>
         </div>
         <p className="status" role="status">
           {session?.signedIn
@@ -230,6 +266,7 @@ export default function App() {
         {cosmosHarness ? (
           <pre className="inspection">{JSON.stringify(cosmosHarness, null, 2)}</pre>
         ) : null}
+        {blobHarness ? <pre className="inspection">{JSON.stringify(blobHarness, null, 2)}</pre> : null}
       </section>
 
       <section className="devPanel" aria-label="Working folder harness">
