@@ -1,3 +1,5 @@
+import { readPublicEnv } from '../auth/readPublicEnv'
+
 export type CosmosPublicConfig = {
   endpoint: string
   databaseId: string
@@ -9,15 +11,15 @@ export type CosmosPublicConfig = {
 export const COSMOS_DEFAULT_SCOPE = 'https://cosmos.azure.com/user_impersonation'
 
 /**
- * Non-secret Cosms endpoints/names from env (never account keys).
- * Set YAADEIN_COSMOS_ENDPOINT in apps/desktop/.env
+ * Non-secret Cosms endpoints/names (never account keys).
+ * Dev: apps/desktop/.env. Packaged: embedded at build time.
  */
 export function getCosmosPublicConfig(): CosmosPublicConfig {
   return {
-    endpoint: process.env.YAADEIN_COSMOS_ENDPOINT?.trim() ?? '',
-    databaseId: process.env.YAADEIN_COSMOS_DATABASE?.trim() || 'yaadein',
-    containerId: process.env.YAADEIN_COSMOS_CONTAINER?.trim() || 'media',
-    scope: process.env.YAADEIN_COSMOS_SCOPE?.trim() || COSMOS_DEFAULT_SCOPE,
+    endpoint: readPublicEnv('YAADEIN_COSMOS_ENDPOINT'),
+    databaseId: readPublicEnv('YAADEIN_COSMOS_DATABASE') || 'yaadein',
+    containerId: readPublicEnv('YAADEIN_COSMOS_CONTAINER') || 'media',
+    scope: readPublicEnv('YAADEIN_COSMOS_SCOPE') || COSMOS_DEFAULT_SCOPE,
   }
 }
 

@@ -1,0 +1,40 @@
+extraMetadata:
+  name: yaadein
+appId: com.digillent.yaadein
+productName: Yaadein
+directories:
+  output: release
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!electron-builder.yml'
+  - '!{.eslintcache,eslint.config.js}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,tsconfig.*.tsbuildinfo}'
+  - '!vitest.config.ts'
+  - '!**/release/*'
+  - '!**/*.test.ts'
+asar: true
+npmRebuild: false
+mac:
+  category: public.app-category.photography
+  identity: null
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
+  artifactName: ${productName}-Mac-${version}-${arch}.${ext}
+win:
+  target:
+    - target: zip
+      arch:
+        - x64
+  artifactName: ${productName}-Windows-${version}-${arch}.${ext}
+dmg:
+  artifactName: ${productName}-Mac-${version}-${arch}.${ext}

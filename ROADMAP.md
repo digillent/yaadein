@@ -153,9 +153,9 @@ Solo MVP (M1–M12) delivered cloud-backed scan/review/cleanup/restore. The mile
 
 **Goal:** Ship installable/runnable desktop builds for macOS and Windows.
 
-**Status:** Not started.
+**Status:** Done.
 
-**In scope:** Electron packaging (e.g. electron-builder); documented build commands; artifacts for Mac and Windows; smoke that packaged app launches and reaches sign-in.
+**In scope (delivered):** electron-builder config (`electron-builder.yml`); `pnpm dist` / `dist:mac` / `dist:win`; Mac DMG+zip and Windows zip under `apps/desktop/release/`; public Entra/Cosmos/Blob config **embedded at build time** from `apps/desktop/.env` (no runtime `.env` copy); README executable scripts. Unsigned local builds (`mac.identity: null`).
 
 **Out of scope:** Auto-update CDN; notarization/store submission polish beyond what’s required to run locally; Linux; CI publish pipeline (optional follow-up).
 

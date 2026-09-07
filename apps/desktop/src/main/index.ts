@@ -11,7 +11,13 @@ import { registerReviewIpc } from './ipc/reviewIpc'
 import { registerCleanupIpc } from './ipc/cleanupIpc'
 import { registerRestoreIpc } from './ipc/restoreIpc'
 
-loadDesktopEnvFile()
+// Prefer product name over scoped package name for userData (`…/Yaadein`).
+app.setName('Yaadein')
+
+// Local dev: load apps/desktop/.env into process.env. Packaged builds embed public config at compile time.
+if (!app.isPackaged) {
+  loadDesktopEnvFile()
+}
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({

@@ -3,14 +3,25 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
- * Load apps/desktop/.env into process.env (does not override existing vars).
- * Keeps Entra IDs out of git while making them available to the main process.
+ * Candidate paths for apps/desktop/.env during local `pnpm dev`.
+ * Packaged builds embed public config at compile time — no runtime .env copy.
+ */
+export function desktopEnvCandidatePaths(options: {
+  cwd: string
+  moduleDir: string
+}): string[] {
+  return [join(options.cwd, '.env'), join(options.moduleDir, '../../../.env')]
+}
+
+/**
+ * Load the first existing .env into process.env (does not override existing vars).
+ * Used for local development; packaged apps use build-time Vite env instead.
  */
 export function loadDesktopEnvFile(): void {
-  const candidates = [
-    join(process.cwd(), '.env'),
-    join(dirname(fileURLToPath(import.meta.url)), '../../../.env'),
-  ]
+  const candidates = desktopEnvCandidatePaths({
+    cwd: process.cwd(),
+    moduleDir: dirname(fileURLToPath(import.meta.url)),
+  })
 
   for (const envPath of candidates) {
     if (!existsSync(envPath)) {

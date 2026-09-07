@@ -5,6 +5,9 @@
   "scripts": {
     "dev": "pnpm --filter @yaadein/desktop dev",
     "build": "pnpm --filter @yaadein/desktop build",
+    "dist": "pnpm --filter @yaadein/desktop dist",
+    "dist:mac": "pnpm --filter @yaadein/desktop dist:mac",
+    "dist:win": "pnpm --filter @yaadein/desktop dist:win",
     "test": "pnpm --filter @yaadein/desktop test",
     "lint": "pnpm --filter @yaadein/desktop lint"
   },
