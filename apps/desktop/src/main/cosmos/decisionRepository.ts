@@ -88,6 +88,10 @@ export class DecisionRepository {
     return this.store.queryAcceptedSynced(this.getUserId())
   }
 
+  requireUserId(): string {
+    return this.getUserId()
+  }
+
   async upsertAccepted(input: AcceptedDecisionInput): Promise<MediaDecisionDocument> {
     const doc = buildAcceptedDocument(this.getUserId(), input)
     return this.store.upsert(doc)

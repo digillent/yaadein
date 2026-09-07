@@ -28,6 +28,7 @@ import {
 import { reviewActionFromKey } from './reviewKeys'
 import { ReviewMediaStage } from './ReviewMediaStage'
 import { RejectedLibraryPanel } from './RejectedLibraryPanel'
+import { DuplicateComparePanel } from './DuplicateComparePanel'
 import {
   busySet,
   statusSet,
@@ -672,6 +673,14 @@ export default function App() {
             type="button"
             className="primaryAction"
             disabled={busy}
+            onClick={() => dispatch(screenSet('duplicates'))}
+          >
+            Duplicate compare
+          </button>
+          <button
+            type="button"
+            className="primaryAction"
+            disabled={busy}
             onClick={() => dispatch(screenSet('viewMedia'))}
           >
             View media
@@ -870,6 +879,29 @@ export default function App() {
           {statusBar}
         </header>
         <RejectedLibraryPanel
+          workingRoot={workingRoot}
+          busy={busy}
+          signedIn={session.signedIn}
+          onStatus={(message) => dispatch(statusSet(message))}
+          onBusy={withBusy}
+          onSignIn={signIn}
+          onBackHome={() => dispatch(screenSet('home'))}
+        />
+      </main>
+    )
+  }
+
+  if (screen === 'duplicates') {
+    return (
+      <main className="shell">
+        <header className="appHeader">
+          <div>
+            <h1>{title}</h1>
+            <p className="tagline">Compare duplicate vs original — ↓ deletes the duplicate only.</p>
+          </div>
+          {statusBar}
+        </header>
+        <DuplicateComparePanel
           workingRoot={workingRoot}
           busy={busy}
           signedIn={session.signedIn}

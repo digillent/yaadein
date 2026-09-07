@@ -12,6 +12,7 @@ import type {
 import type { CleanupBucket, CleanupDeleteResult, CleanupListResult } from '../shared/cleanupTypes'
 import type { RestorePreserveResult, RestoreProgress } from '../shared/restoreTypes'
 import type { PersistedDesktopSettings } from '../shared/persistedSettingsTypes'
+import type { DuplicateComparePair } from '../shared/duplicateTypes'
 
 export type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
 
@@ -52,6 +53,7 @@ export type {
   RestorePreserveResult,
   RestoreProgress,
   PersistedDesktopSettings,
+  DuplicateComparePair,
 }
 
 const api = {
@@ -110,6 +112,12 @@ const api = {
     workingRoot: string
     captureDateIso?: string
   }): Promise<ReviewAcceptResult> => ipcRenderer.invoke('review:acceptRejected', payload),
+  listDuplicates: (payload: { workingRoot: string }): Promise<CleanupListResult> =>
+    ipcRenderer.invoke('duplicates:list', payload),
+  resolveDuplicate: (payload: {
+    workingRoot: string
+    duplicatePath: string
+  }): Promise<DuplicateComparePair> => ipcRenderer.invoke('duplicates:resolve', payload),
   listCleanup: (payload: {
     workingRoot: string
     bucket: CleanupBucket

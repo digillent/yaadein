@@ -9,6 +9,7 @@ export type AppScreen =
   | 'scan'
   | 'review'
   | 'rejected'
+  | 'duplicates'
   | 'viewMedia'
   | 'tools'
 
