@@ -10,9 +10,9 @@ import type {
   ReviewRejectResult,
 } from '../shared/reviewTypes'
 import type { CleanupBucket, CleanupDeleteResult, CleanupListResult } from '../shared/cleanupTypes'
+import type { RestorePreserveResult, RestoreProgress } from '../shared/restoreTypes'
 
 export type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
-
 
 export type MoveMediaPayload = {
   sourcePath: string
@@ -48,6 +48,8 @@ export type {
   CleanupBucket,
   CleanupListResult,
   CleanupDeleteResult,
+  RestorePreserveResult,
+  RestoreProgress,
 }
 
 const api = {
@@ -105,6 +107,17 @@ const api = {
     bucket: CleanupBucket
     paths: string[]
   }): Promise<CleanupDeleteResult> => ipcRenderer.invoke('cleanup:delete', payload),
+  runRestore: (payload: { workingRoot: string }): Promise<RestorePreserveResult> =>
+    ipcRenderer.invoke('restore:run', payload),
+  onRestoreProgress: (listener: (progress: RestoreProgress) => void): (() => void) => {
+    const handler = (_event: unknown, progress: RestoreProgress): void => {
+      listener(progress)
+    }
+    ipcRenderer.on('restore:progress', handler)
+    return () => {
+      ipcRenderer.removeListener('restore:progress', handler)
+    }
+  },
 }
 
 contextBridge.exposeInMainWorld('yaadein', api)

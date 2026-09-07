@@ -9,6 +9,7 @@ import { registerBlobIpc } from './ipc/blobIpc'
 import { registerScanIpc } from './ipc/scanIpc'
 import { registerReviewIpc } from './ipc/reviewIpc'
 import { registerCleanupIpc } from './ipc/cleanupIpc'
+import { registerRestoreIpc } from './ipc/restoreIpc'
 
 loadDesktopEnvFile()
 
@@ -49,6 +50,7 @@ app.whenReady().then(() => {
   registerScanIpc()
   registerReviewIpc()
   registerCleanupIpc()
+  registerRestoreIpc()
   registerWorkingFolderIpc()
   registerMediaIpc()
   createWindow()

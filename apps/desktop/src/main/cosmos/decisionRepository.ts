@@ -11,6 +11,7 @@ import { buildAcceptedDocument, buildRejectedDocument } from './decisionDocument
 export type CosmosDecisionStore = {
   readById(id: string, userId: string): Promise<MediaDecisionDocument | null>
   queryByHashes(userId: string, hashes: string[]): Promise<MediaDecisionDocument[]>
+  queryAcceptedSynced(userId: string): Promise<MediaDecisionDocument[]>
   upsert(doc: MediaDecisionDocument): Promise<MediaDecisionDocument>
 }
 
@@ -44,6 +45,19 @@ export function createCosmosDecisionStore(container: Container): CosmosDecisionS
       return resources
     },
 
+    async queryAcceptedSynced(userId) {
+      const { resources } = await container.items
+        .query<MediaDecisionDocument>(
+          {
+            query:
+              "SELECT * FROM c WHERE c.decision = 'ACCEPTED' AND c.cloudStatus = 'SYNCED'",
+          },
+          { partitionKey: userId },
+        )
+        .fetchAll()
+      return resources
+    },
+
     async upsert(doc) {
       const { resource } = await container.items.upsert<MediaDecisionDocument>(doc)
       if (!resource) {
@@ -68,6 +82,10 @@ export class DecisionRepository {
     }
     // Prefer batch query sized to the candidate set (ARCHITECTURE: batch Cosms ops).
     return this.store.queryByHashes(userId, unique)
+  }
+
+  async listAcceptedSynced(): Promise<MediaDecisionDocument[]> {
+    return this.store.queryAcceptedSynced(this.getUserId())
   }
 
   async upsertAccepted(input: AcceptedDecisionInput): Promise<MediaDecisionDocument> {

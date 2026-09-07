@@ -66,6 +66,7 @@ describe('DecisionRepository', () => {
           decidedAt: '2026-09-06T00:00:00.000Z',
         })),
       ),
+      queryAcceptedSynced: vi.fn(async () => []),
       upsert: vi.fn(async (doc) => {
         upserted.push(doc)
         return doc
