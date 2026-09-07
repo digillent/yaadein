@@ -27,6 +27,7 @@ import {
 } from './store/settingsSlice'
 import { reviewActionFromKey } from './reviewKeys'
 import { ReviewMediaStage } from './ReviewMediaStage'
+import { RejectedLibraryPanel } from './RejectedLibraryPanel'
 import {
   busySet,
   statusSet,
@@ -654,10 +655,18 @@ export default function App() {
           <button
             type="button"
             className="primaryAction"
-            disabled={busy || reviewQueue.length === 0}
+            disabled={busy}
             onClick={() => dispatch(screenSet('review'))}
           >
             Review unknowns{reviewQueue.length > 0 ? ` (${reviewQueue.length})` : ''}
+          </button>
+          <button
+            type="button"
+            className="primaryAction"
+            disabled={busy}
+            onClick={() => dispatch(screenSet('rejected'))}
+          >
+            Rejected library
           </button>
           <button
             type="button"
@@ -846,6 +855,29 @@ export default function App() {
           </div>
           {inspection ? <pre className="inspection">{JSON.stringify(inspection, null, 2)}</pre> : null}
         </section>
+      </main>
+    )
+  }
+
+  if (screen === 'rejected') {
+    return (
+      <main className="shell">
+        <header className="appHeader">
+          <div>
+            <h1>{title}</h1>
+            <p className="tagline">Browse rejected media — delete locally or accept to keep.</p>
+          </div>
+          {statusBar}
+        </header>
+        <RejectedLibraryPanel
+          workingRoot={workingRoot}
+          busy={busy}
+          signedIn={session.signedIn}
+          onStatus={(message) => dispatch(statusSet(message))}
+          onBusy={withBusy}
+          onSignIn={signIn}
+          onBackHome={() => dispatch(screenSet('home'))}
+        />
       </main>
     )
   }

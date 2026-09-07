@@ -8,6 +8,7 @@ export type AppScreen =
   | 'settings'
   | 'scan'
   | 'review'
+  | 'rejected'
   | 'viewMedia'
   | 'tools'
 

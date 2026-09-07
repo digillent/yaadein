@@ -105,6 +105,11 @@ const api = {
     workingRoot: string
     captureDateIso?: string
   }): Promise<ReviewRejectResult> => ipcRenderer.invoke('review:reject', payload),
+  reviewAcceptRejected: (payload: {
+    sourcePath: string
+    workingRoot: string
+    captureDateIso?: string
+  }): Promise<ReviewAcceptResult> => ipcRenderer.invoke('review:acceptRejected', payload),
   listCleanup: (payload: {
     workingRoot: string
     bucket: CleanupBucket

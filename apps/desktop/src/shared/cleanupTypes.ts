@@ -6,7 +6,10 @@ export type CleanupFileEntry = {
   absolutePath: string
   relativePath: string
   sizeBytes: number
+  /** YYYY/MM from path under the bucket when present. */
+  yearMonth: string | null
 }
+
 
 export type CleanupListResult = {
   workingRoot: string

@@ -189,9 +189,9 @@ Solo MVP (M1–M12) delivered cloud-backed scan/review/cleanup/restore. The mile
 
 **Goal:** Browse `rejected/` as a grid by year/month; delete confirmed; accept a rejected file back into the keep path.
 
-**Status:** Not started.
+**Status:** Done.
 
-**In scope:** Grid of rejected media; filter by year/month (`YYYY/MM`); multi-select or item delete (local only; retain Cosms unless accepting); **Accept** on a rejected item → Cosms full ACCEPTED + Blob `SYNCED` → move to `preserve/` (same accept gate as review); remove from rejected UX after success.
+**In scope (delivered):** Rejected library screen (Home → Rejected library); grid with year/month filter; multi-select confirmed delete (local only, Cosms retained); **Accept** → Cosms ACCEPTED + Blob `SYNCED` → `preserve/` via path-guarded `acceptRejectedMedia`; thumbs via media stream preview.
 
 **Out of scope:** Duplicate side-by-side (M17); cherish/tag browse (M18); auto-delete during scan.
 
