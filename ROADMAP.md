@@ -165,11 +165,9 @@ Solo MVP (M1–M12) delivered cloud-backed scan/review/cleanup/restore. The mile
 
 **Goal:** Product home: start a scan or open View media; configure working folder once and change it later without re-prompting every launch.
 
-**Status:** Not started.
+**Status:** Done.
 
-**In scope:** Persist working folder (and related settings); on launch, use saved root if valid—do not ask again; Settings path to change working folder; Home with two primary actions — **New scan** and **View media** (View media may stub-route until M18); navigate away from single-page harness layout toward app shell.
-
-**Note:** Working/scan root persistence to userData (`desktop-settings.json`) was delivered early so packaged builds keep the folder across launches; Home shell remains for this milestone.
+**In scope (delivered):** Persist working/scan roots in userData; first-run setup when unset (no re-prompt when valid); Home with **New scan** and **View media** (stub until M18); Settings to change working folder; screen navigation in Redux (`home` / `setup` / `settings` / `scan` / `viewMedia` / `tools`); harness panels under Tools.
 
 **Out of scope:** Tinder review (M15); rejected/duplicate library UIs (M16–M17); tag browse (M18); packaging (M13).
 

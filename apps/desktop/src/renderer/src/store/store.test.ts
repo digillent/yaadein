@@ -9,7 +9,7 @@ import {
   selectCurrentReviewPath,
 } from './reviewSlice'
 import { workingRootSet, scanRootSet, eventDateOverrideSet } from './settingsSlice'
-import { busySet, statusSet } from './uiSlice'
+import { busySet, statusSet, screenSet, settingsHydratedSet } from './uiSlice'
 
 describe('redux store slices', () => {
   it('tracks auth session sign-in and sign-out', () => {
@@ -94,5 +94,19 @@ describe('redux store slices', () => {
     store.dispatch(statusSet('Scanning…'))
     expect(store.getState().ui.busy).toBe(true)
     expect(store.getState().ui.status).toBe('Scanning…')
+  })
+
+  it('navigates app screens and marks settings hydrated', () => {
+    const store = createAppStore()
+    expect(store.getState().ui.screen).toBe('home')
+    expect(store.getState().ui.settingsHydrated).toBe(false)
+    store.dispatch(settingsHydratedSet(true))
+    store.dispatch(screenSet('setup'))
+    expect(store.getState().ui.settingsHydrated).toBe(true)
+    expect(store.getState().ui.screen).toBe('setup')
+    store.dispatch(screenSet('scan'))
+    expect(store.getState().ui.screen).toBe('scan')
+    store.dispatch(screenSet('viewMedia'))
+    expect(store.getState().ui.screen).toBe('viewMedia')
   })
 })
