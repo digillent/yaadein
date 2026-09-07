@@ -93,4 +93,11 @@ describe('inspectMediaFile', () => {
     expect(inspection.organizeDateSource).toBe('user_override')
     expect(inspection.organizeDate).toBe('2018-11-20T12:00:00.000Z')
   })
+
+  it('refuses non-media paths like .DS_Store', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'yaadein-inspect-'))
+    const filePath = join(dir, '.DS_Store')
+    await writeFile(filePath, 'x')
+    await expect(inspectMediaFile(filePath)).rejects.toThrow(/previewable media/)
+  })
 })

@@ -32,6 +32,7 @@ describe('cleanupLocal', () => {
     writeFileSync(rejectedFile, 'junk')
     writeFileSync(preserveFile, 'keep')
     writeFileSync(dupFile, 'dup')
+    writeFileSync(join(root, 'rejected', '2026', '01', '.DS_Store'), 'skip')
 
     const listed = await listCleanupFiles(root, 'rejected')
     expect(listed.files.map((f) => f.relativePath)).toEqual(['2026/01/junk.jpg'])

@@ -56,6 +56,9 @@ describe('acceptRejectedMedia', () => {
       async downloadFile() {
         throw new Error('not used')
       },
+      async deleteFile() {
+        throw new Error('not used')
+      },
     }
 
     await expect(
@@ -83,6 +86,9 @@ describe('acceptRejectedMedia', () => {
         return { cloudObjectId: 'oid-1/hash-rej-accept-1', blobUrl: 'https://example/b' }
       },
       async downloadFile() {
+        throw new Error('not used')
+      },
+      async deleteFile() {
         throw new Error('not used')
       },
     }

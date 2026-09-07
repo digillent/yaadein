@@ -33,10 +33,20 @@ export type BlobMediaStore = {
     cloudObjectId: string
     localPath: string
   }): Promise<{ cloudObjectId: string }>
+  /** Delete blob by cloudObjectId. No-ops when the blob is already missing (404). */
+  deleteFile(args: { cloudObjectId: string }): Promise<void>
 }
 
 /** @deprecated Prefer BlobMediaStore — kept for existing call sites. */
 export type BlobUploadStore = BlobMediaStore
+
+function isBlobNotFound(error: unknown): boolean {
+  const status =
+    typeof error === 'object' && error !== null && 'statusCode' in error
+      ? Number((error as { statusCode?: unknown }).statusCode)
+      : NaN
+  return status === 404
+}
 
 export function createBlobUploadStore(
   auth: AuthService,
@@ -65,6 +75,18 @@ export function createBlobUploadStore(
       const blockBlob: BlockBlobClient = container.getBlockBlobClient(cloudObjectId)
       await blockBlob.downloadToFile(localPath)
       return { cloudObjectId }
+    },
+
+    async deleteFile({ cloudObjectId }) {
+      const blockBlob: BlockBlobClient = container.getBlockBlobClient(cloudObjectId)
+      try {
+        await blockBlob.delete()
+      } catch (error) {
+        if (isBlobNotFound(error)) {
+          return
+        }
+        throw error
+      }
     },
   }
 }

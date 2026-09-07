@@ -1,7 +1,7 @@
 export type { MediaInspection, MediaTags } from './types'
 export { emptyTags } from './types'
 export { hashFileContent } from './hashFile'
-export { mediaTypeFromPath, isLikelyImagePath } from './mediaType'
+export { mediaTypeFromPath, isMediaPath, isLikelyImagePath, isLikelyVideoPath } from './mediaType'
 export { extractExifFields, mapParsedExif } from './extractExif'
 export { resolveOrganizeDate } from './resolveOrganizeDate'
 export { inspectMediaFile } from './inspectMedia'

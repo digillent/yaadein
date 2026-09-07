@@ -29,6 +29,8 @@ import { reviewActionFromKey } from './reviewKeys'
 import { ReviewMediaStage } from './ReviewMediaStage'
 import { RejectedLibraryPanel } from './RejectedLibraryPanel'
 import { DuplicateComparePanel } from './DuplicateComparePanel'
+import { ViewMediaPanel } from './ViewMediaPanel'
+import { isMediaPath } from '@shared/mediaPath'
 import {
   busySet,
   statusSet,
@@ -390,6 +392,7 @@ export default function App() {
         const unknowns = result.results
           .filter((item) => item.outcome === 'skipped_unknown')
           .map((item) => item.sourcePath)
+          .filter((path) => isMediaPath(path))
         dispatch(reviewQueueLoaded(unknowns))
         dispatch(
           statusSet(
@@ -710,18 +713,19 @@ export default function App() {
         <header className="appHeader">
           <div>
             <h1>{title}</h1>
-            <p className="tagline">Cherish kept media — coming next.</p>
+            <p className="tagline">Cherish keepers in preserve/ — filter by tags (AND).</p>
           </div>
           {statusBar}
         </header>
-        {navHome}
-        <section className="devPanel" aria-label="View media">
-          <h2>View media</h2>
-          <p className="hint">
-            Browse preserve/ with multi-tag filters arrives in Milestone 18. Working folder is ready
-            at {workingRoot}.
-          </p>
-        </section>
+        <ViewMediaPanel
+          workingRoot={workingRoot}
+          busy={busy}
+          signedIn={session.signedIn}
+          onStatus={(message) => dispatch(statusSet(message))}
+          onBusy={withBusy}
+          onSignIn={signIn}
+          onBackHome={() => dispatch(screenSet('home'))}
+        />
       </main>
     )
   }

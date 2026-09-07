@@ -34,6 +34,7 @@ describe('restorePreserveFromCloud', () => {
     const hash = sha256(bytes)
     const blobs: BlobMediaStore = {
       uploadFile: vi.fn(),
+      deleteFile: vi.fn(),
       downloadFile: vi.fn(async ({ localPath }) => {
         writeFileSync(localPath, bytes)
         return { cloudObjectId: `oid-1/${hash}` }
@@ -77,7 +78,7 @@ describe('restorePreserveFromCloud', () => {
           acceptedDoc({ contentHash: hash, fileSize: bytes.length }),
         ],
       },
-      blobs: { uploadFile: vi.fn(), downloadFile },
+      blobs: { uploadFile: vi.fn(), downloadFile, deleteFile: vi.fn() },
     })
 
     expect(result.skipped).toBe(1)
@@ -91,6 +92,7 @@ describe('restorePreserveFromCloud', () => {
     const hash = sha256(expected)
     const blobs: BlobMediaStore = {
       uploadFile: vi.fn(),
+      deleteFile: vi.fn(),
       downloadFile: vi.fn(async ({ localPath }) => {
         writeFileSync(localPath, 'wrong-bytes')
         return { cloudObjectId: `oid-1/${hash}` }

@@ -44,7 +44,7 @@ describe('resolveDuplicateComparePair', () => {
         },
         requireUserId: () => 'oid-1',
       },
-      blobs: { uploadFile: vi.fn(), downloadFile: vi.fn() },
+      blobs: { uploadFile: vi.fn(), downloadFile: vi.fn(), deleteFile: vi.fn() },
       downloadIfMissing: false,
     })
     expect(pair.original.status).toBe('unavailable')
@@ -83,7 +83,7 @@ describe('resolveDuplicateComparePair', () => {
         },
         requireUserId: () => 'oid-1',
       },
-      blobs: { uploadFile: vi.fn(), downloadFile: vi.fn() },
+      blobs: { uploadFile: vi.fn(), downloadFile: vi.fn(), deleteFile: vi.fn() },
     })
 
     expect(pair.original.status).toBe('local')
@@ -115,6 +115,7 @@ describe('resolveDuplicateComparePair', () => {
 
     const blobs: BlobMediaStore = {
       uploadFile: vi.fn(),
+      deleteFile: vi.fn(),
       downloadFile: vi.fn(async ({ localPath }) => {
         writeFileSync(localPath, body)
         return { cloudObjectId: `oid-1/${hash}` }
@@ -151,7 +152,7 @@ describe('resolveDuplicateComparePair', () => {
           },
           requireUserId: () => 'oid-1',
         },
-        blobs: { uploadFile: vi.fn(), downloadFile: vi.fn() },
+        blobs: { uploadFile: vi.fn(), downloadFile: vi.fn(), deleteFile: vi.fn() },
       }),
     ).rejects.toThrow(/under duplicate/)
   })

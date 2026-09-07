@@ -213,9 +213,9 @@ Solo MVP (M1–M12) delivered cloud-backed scan/review/cleanup/restore. The mile
 
 **Goal:** From Home, browse kept media and filter by tags (multi-select).
 
-**Status:** Not started.
+**Status:** Done.
 
-**In scope:** View media screen over accepted/preserve keepers; filter by tags (`people` / `places` / `events` as already modeled); **multiple tags** selected together (AND or clear intersection semantics—document in UI); Cosms (or local+Cosms) as source for tag metadata—not Redux as decision truth; basic preview/playback consistent with review media handling.
+**In scope (delivered):** View media over local `preserve/` keepers (previewable media only); Cosms ACCEPTED+SYNCED tags (`people` / `places` / `events`); multi-select filters with **AND** semantics (documented in UI); grid + focus preview; reject from View media (delete Blob → Cosms REJECTED → move to `rejected/`); Home → View media.
 
 **Out of scope:** Perceptual search; social sharing; full DAM/album product; Functions gateway.
 
