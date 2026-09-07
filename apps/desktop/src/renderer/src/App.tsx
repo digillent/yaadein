@@ -28,6 +28,8 @@ import {
 import {
   busySet,
   statusSet,
+  screenSet,
+  settingsHydratedSet,
   inspectionSet,
   cosmosHarnessSet,
   blobHarnessSet,
@@ -59,6 +61,8 @@ export default function App() {
   const currentReviewPath = useAppSelector(selectCurrentReviewPath)
   const busy = useAppSelector((s) => s.ui.busy)
   const status = useAppSelector((s) => s.ui.status)
+  const screen = useAppSelector((s) => s.ui.screen)
+  const settingsHydrated = useAppSelector((s) => s.ui.settingsHydrated)
   const inspection = useAppSelector((s) => s.ui.inspection)
   const cosmosHarness = useAppSelector((s) => s.ui.cosmosHarness)
   const blobHarness = useAppSelector((s) => s.ui.blobHarness)
@@ -88,6 +92,9 @@ export default function App() {
       (settings) => {
         if (settings.workingRoot) {
           dispatch(workingRootSet(settings.workingRoot))
+          dispatch(screenSet('home'))
+        } else {
+          dispatch(screenSet('setup'))
         }
         if (settings.scanRoot) {
           dispatch(scanRootSet(settings.scanRoot))
@@ -95,12 +102,23 @@ export default function App() {
         if (settings.workingRoot) {
           dispatch(statusSet(`Working folder: ${settings.workingRoot}`))
         }
+        dispatch(settingsHydratedSet(true))
       },
       () => {
-        /* first launch or unreadable settings — ignore */
+        dispatch(screenSet('setup'))
+        dispatch(settingsHydratedSet(true))
       },
     )
   }, [dispatch])
+
+  useEffect(() => {
+    if (!settingsHydrated) {
+      return
+    }
+    if (!workingRoot && screen !== 'setup') {
+      dispatch(screenSet('setup'))
+    }
+  }, [settingsHydrated, workingRoot, screen, dispatch])
 
   useEffect(() => {
     return window.yaadein.onScanProgress((progress) => {
@@ -153,11 +171,13 @@ export default function App() {
       dispatch(workingRootSet(path))
       try {
         await window.yaadein.savePersistedSettings({ workingRoot: path })
+        await window.yaadein.ensureWorkingFolder(path)
       } catch (error) {
         dispatch(statusSet(error instanceof Error ? error.message : String(error)))
         return
       }
       dispatch(statusSet(`Working folder: ${path}`))
+      dispatch(screenSet('home'))
     }
   }
 
@@ -513,102 +533,293 @@ export default function App() {
     })
   }
 
-  return (
-    <main className="shell">
-      <header className="appHeader">
-        <div>
+  if (!settingsHydrated) {
+    return (
+      <main className="shell">
+        <header className="appHeader">
           <h1>{title}</h1>
-          <p className="tagline">Clear digital clutter and preserve the memories that matter.</p>
-        </div>
-        <p className="statusBar" role="status">
-          {busy ? 'Working… · ' : ''}
-          {session.signedIn
-            ? `Signed in: ${session.username ?? session.accountName ?? 'account'}`
-            : 'Not signed in'}
-          {status ? ` · ${status}` : ''}
-        </p>
-      </header>
+          <p className="tagline">Loading…</p>
+        </header>
+      </main>
+    )
+  }
 
-      <section className="devPanel" aria-label="Settings">
-        <h2>Settings</h2>
-        <p className="hint">
-          Working folder and scan root (saved under app userData; restored on next launch).
-        </p>
-        <div className="row">
-          <button type="button" disabled={busy} onClick={() => void chooseWorkingRoot()}>
-            Choose working folder
-          </button>
-          <button type="button" disabled={busy || !workingRoot} onClick={() => void ensureTree()}>
-            Ensure folders
-          </button>
-          <button type="button" disabled={busy} onClick={() => void chooseScanRoot()}>
-            Choose scan folder
-          </button>
-        </div>
-        <p className="status" role="status">
-          Working: {workingRoot || '—'}
-          <br />
-          Scan: {scanRoot || '—'}
-        </p>
-        <div className="row">
-          <label className="bucket">
-            Event date override
-            <input
-              type="date"
-              value={eventDateOverride}
-              disabled={busy}
-              onChange={(event) => dispatch(eventDateOverrideSet(event.target.value))}
-            />
-          </label>
-          {eventDateOverride ? (
-            <button type="button" disabled={busy} onClick={() => dispatch(eventDateOverrideSet(''))}>
-              Clear override
+  const statusBar = (
+    <p className="statusBar" role="status">
+      {busy ? 'Working… · ' : ''}
+      {session.signedIn
+        ? `Signed in: ${session.username ?? session.accountName ?? 'account'}`
+        : 'Not signed in'}
+      {workingRoot ? ` · ${workingRoot}` : ''}
+      {status ? ` · ${status}` : ''}
+    </p>
+  )
+
+  const navHome = (
+    <div className="row navRow">
+      <button type="button" disabled={busy} onClick={() => dispatch(screenSet('home'))}>
+        Home
+      </button>
+    </div>
+  )
+
+  if (screen === 'setup' || !workingRoot) {
+    return (
+      <main className="shell">
+        <header className="appHeader">
+          <div>
+            <h1>{title}</h1>
+            <p className="tagline">Choose a Yaadein working folder once. We’ll remember it.</p>
+          </div>
+          {statusBar}
+        </header>
+        <section className="devPanel" aria-label="First-run setup">
+          <h2>Set up working folder</h2>
+          <p className="hint">
+            This folder holds preserve/, duplicate/, and rejected/. You can change it later in
+            Settings.
+          </p>
+          <div className="row">
+            <button type="button" className="primaryAction" disabled={busy} onClick={() => void chooseWorkingRoot()}>
+              Choose working folder
             </button>
-          ) : null}
-        </div>
-      </section>
+          </div>
+        </section>
+      </main>
+    )
+  }
 
-      <section className="devPanel" aria-label="Auth">
-        <h2>Sign-in</h2>
-        <p className="hint">Entra PKCE. Cosms/Storage use separate resource tokens when needed.</p>
-        <div className="row">
-          <button type="button" disabled={busy} onClick={() => void signIn()}>
+  if (screen === 'home') {
+    return (
+      <main className="shell">
+        <header className="appHeader homeHero">
+          <div>
+            <h1>{title}</h1>
+            <p className="tagline">Clear digital clutter and preserve the memories that matter.</p>
+          </div>
+          {statusBar}
+        </header>
+        <div className="homeActions" role="navigation" aria-label="Home">
+          <button
+            type="button"
+            className="primaryAction"
+            disabled={busy}
+            onClick={() => dispatch(screenSet('scan'))}
+          >
+            New scan
+          </button>
+          <button
+            type="button"
+            className="primaryAction"
+            disabled={busy}
+            onClick={() => dispatch(screenSet('viewMedia'))}
+          >
+            View media
+          </button>
+        </div>
+        <div className="row homeSecondary">
+          <button type="button" disabled={busy} onClick={() => dispatch(screenSet('settings'))}>
+            Settings
+          </button>
+          <button type="button" disabled={busy || session.signedIn} onClick={() => void signIn()}>
             Sign in
           </button>
           <button type="button" disabled={busy || !session.signedIn} onClick={() => void signOut()}>
             Sign out
           </button>
-          <button type="button" disabled={busy || !session.signedIn} onClick={() => void callMe()}>
-            Call Graph /me
-          </button>
-          <button
-            type="button"
-            disabled={busy || !session.signedIn}
-            onClick={() => void runCosmosHarness()}
-          >
-            Cosms upsert + lookup
-          </button>
-          <button
-            type="button"
-            disabled={busy || !session.signedIn || !sourcePath}
-            onClick={() => void runAcceptUpload()}
-          >
-            Accept + upload Blob
+          <button type="button" disabled={busy} onClick={() => dispatch(screenSet('tools'))}>
+            Tools
           </button>
         </div>
-        {meProfile ? <pre className="inspection">{JSON.stringify(meProfile, null, 2)}</pre> : null}
-        {cosmosHarness ? (
-          <pre className="inspection">{JSON.stringify(cosmosHarness, null, 2)}</pre>
-        ) : null}
-        {blobHarness ? <pre className="inspection">{JSON.stringify(blobHarness, null, 2)}</pre> : null}
-      </section>
+      </main>
+    )
+  }
+
+  if (screen === 'viewMedia') {
+    return (
+      <main className="shell">
+        <header className="appHeader">
+          <div>
+            <h1>{title}</h1>
+            <p className="tagline">Cherish kept media — coming next.</p>
+          </div>
+          {statusBar}
+        </header>
+        {navHome}
+        <section className="devPanel" aria-label="View media">
+          <h2>View media</h2>
+          <p className="hint">
+            Browse preserve/ with multi-tag filters arrives in Milestone 18. Working folder is ready
+            at {workingRoot}.
+          </p>
+        </section>
+      </main>
+    )
+  }
+
+  if (screen === 'settings') {
+    return (
+      <main className="shell">
+        <header className="appHeader">
+          <div>
+            <h1>{title}</h1>
+            <p className="tagline">Working folder and account.</p>
+          </div>
+          {statusBar}
+        </header>
+        {navHome}
+        <section className="devPanel" aria-label="Settings">
+          <h2>Settings</h2>
+          <p className="hint">
+            Working folder is saved under app userData and restored on launch — no re-prompt when set.
+          </p>
+          <div className="row">
+            <button type="button" disabled={busy} onClick={() => void chooseWorkingRoot()}>
+              Change working folder
+            </button>
+            <button type="button" disabled={busy || !workingRoot} onClick={() => void ensureTree()}>
+              Ensure folders
+            </button>
+            <button type="button" disabled={busy} onClick={() => void chooseScanRoot()}>
+              Choose scan folder
+            </button>
+          </div>
+          <p className="status" role="status">
+            Working: {workingRoot || '—'}
+            <br />
+            Scan: {scanRoot || '—'}
+          </p>
+          <div className="row">
+            <label className="bucket">
+              Event date override
+              <input
+                type="date"
+                value={eventDateOverride}
+                disabled={busy}
+                onChange={(event) => dispatch(eventDateOverrideSet(event.target.value))}
+              />
+            </label>
+            {eventDateOverride ? (
+              <button type="button" disabled={busy} onClick={() => dispatch(eventDateOverrideSet(''))}>
+                Clear override
+              </button>
+            ) : null}
+          </div>
+          <div className="row">
+            <button type="button" disabled={busy || session.signedIn} onClick={() => void signIn()}>
+              Sign in
+            </button>
+            <button type="button" disabled={busy || !session.signedIn} onClick={() => void signOut()}>
+              Sign out
+            </button>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
+  if (screen === 'tools') {
+    return (
+      <main className="shell">
+        <header className="appHeader">
+          <div>
+            <h1>{title}</h1>
+            <p className="tagline">Developer harness helpers.</p>
+          </div>
+          {statusBar}
+        </header>
+        {navHome}
+        <section className="devPanel" aria-label="Auth tools">
+          <h2>Sign-in & cloud harness</h2>
+          <p className="hint">Entra PKCE. Cosms/Storage use separate resource tokens when needed.</p>
+          <div className="row">
+            <button type="button" disabled={busy} onClick={() => void signIn()}>
+              Sign in
+            </button>
+            <button type="button" disabled={busy || !session.signedIn} onClick={() => void signOut()}>
+              Sign out
+            </button>
+            <button type="button" disabled={busy || !session.signedIn} onClick={() => void callMe()}>
+              Call Graph /me
+            </button>
+            <button
+              type="button"
+              disabled={busy || !session.signedIn}
+              onClick={() => void runCosmosHarness()}
+            >
+              Cosms upsert + lookup
+            </button>
+            <button
+              type="button"
+              disabled={busy || !session.signedIn || !sourcePath}
+              onClick={() => void runAcceptUpload()}
+            >
+              Accept + upload Blob
+            </button>
+          </div>
+          {meProfile ? <pre className="inspection">{JSON.stringify(meProfile, null, 2)}</pre> : null}
+          {cosmosHarness ? (
+            <pre className="inspection">{JSON.stringify(cosmosHarness, null, 2)}</pre>
+          ) : null}
+          {blobHarness ? <pre className="inspection">{JSON.stringify(blobHarness, null, 2)}</pre> : null}
+        </section>
+        <section className="devPanel" aria-label="Media tools">
+          <h2>Media tools</h2>
+          <p className="hint">Inspect and manual move helpers for development.</p>
+          <div className="row">
+            <button type="button" disabled={busy} onClick={() => void chooseSource()}>
+              Choose source file
+            </button>
+            <button type="button" disabled={busy || !sourcePath} onClick={() => void inspectSource()}>
+              Inspect media
+            </button>
+            <label className="bucket">
+              Bucket
+              <select
+                value={moveBucket}
+                disabled={busy}
+                onChange={(event) => dispatch(moveBucketSet(event.target.value as WorkingBucket))}
+              >
+                <option value="preserve">preserve</option>
+                <option value="duplicate">duplicate</option>
+                <option value="rejected">rejected</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              disabled={busy || !workingRoot || !sourcePath}
+              onClick={() => void moveSample()}
+            >
+              Move file
+            </button>
+          </div>
+          {inspection ? <pre className="inspection">{JSON.stringify(inspection, null, 2)}</pre> : null}
+        </section>
+      </main>
+    )
+  }
+
+  // scan workspace (default for screen === 'scan')
+  return (
+    <main className="shell">
+      <header className="appHeader">
+        <div>
+          <h1>{title}</h1>
+          <p className="tagline">Scan folders, classify known hashes, review unknowns.</p>
+        </div>
+        {statusBar}
+      </header>
+      {navHome}
 
       <section className="devPanel" aria-label="Scan">
         <h2>Scan + classify</h2>
         <p className="hint">
-          Progress and results live in Redux. Unknowns load into the review queue.
+          Choose a scan folder (saved), then run. Unknowns load into the review queue below.
         </p>
         <div className="row">
+          <button type="button" disabled={busy} onClick={() => void chooseScanRoot()}>
+            Choose scan folder
+          </button>
           <button
             type="button"
             disabled={busy || !session.signedIn || !workingRoot || !scanRoot}
@@ -616,8 +827,15 @@ export default function App() {
           >
             Run scan
           </button>
+          {!session.signedIn ? (
+            <button type="button" disabled={busy} onClick={() => void signIn()}>
+              Sign in
+            </button>
+          ) : null}
         </div>
         <p className="status" role="status">
+          Scan folder: {scanRoot || '—'}
+          <br />
           {scanProgress
             ? `${scanProgress.phase}: ${scanProgress.filesProcessed}/${scanProgress.filesFound} · rejected ${scanProgress.movedRejected} · duplicate ${scanProgress.movedDuplicate} · unknown ${scanProgress.skippedUnknown}`
             : 'No scan in progress.'}
@@ -746,39 +964,7 @@ export default function App() {
           <pre className="inspection">{JSON.stringify(restoreResult, null, 2)}</pre>
         ) : null}
       </section>
-
-      <section className="devPanel" aria-label="Media tools">
-        <h2>Media tools</h2>
-        <p className="hint">Inspect and manual move helpers for development.</p>
-        <div className="row">
-          <button type="button" disabled={busy} onClick={() => void chooseSource()}>
-            Choose source file
-          </button>
-          <button type="button" disabled={busy || !sourcePath} onClick={() => void inspectSource()}>
-            Inspect media
-          </button>
-          <label className="bucket">
-            Bucket
-            <select
-              value={moveBucket}
-              disabled={busy}
-              onChange={(event) => dispatch(moveBucketSet(event.target.value as WorkingBucket))}
-            >
-              <option value="preserve">preserve</option>
-              <option value="duplicate">duplicate</option>
-              <option value="rejected">rejected</option>
-            </select>
-          </label>
-          <button
-            type="button"
-            disabled={busy || !workingRoot || !sourcePath}
-            onClick={() => void moveSample()}
-          >
-            Move file
-          </button>
-        </div>
-        {inspection ? <pre className="inspection">{JSON.stringify(inspection, null, 2)}</pre> : null}
-      </section>
     </main>
   )
 }
+

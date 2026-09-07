@@ -2,9 +2,19 @@ import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { MediaInspection } from '@shared/mediaTypes'
 import type { AcceptUploadHarnessResult, CosmosHarnessResult } from '@shared/decisionTypes'
 
+export type AppScreen =
+  | 'home'
+  | 'setup'
+  | 'settings'
+  | 'scan'
+  | 'viewMedia'
+  | 'tools'
+
 export type UiState = {
   busy: boolean
   status: string
+  screen: AppScreen
+  settingsHydrated: boolean
   inspection: MediaInspection | null
   cosmosHarness: CosmosHarnessResult | null
   blobHarness: AcceptUploadHarnessResult | null
@@ -13,6 +23,8 @@ export type UiState = {
 const initialState: UiState = {
   busy: false,
   status: '',
+  screen: 'home',
+  settingsHydrated: false,
   inspection: null,
   cosmosHarness: null,
   blobHarness: null,
@@ -27,6 +39,12 @@ const uiSlice = createSlice({
     },
     statusSet(state, action: PayloadAction<string>) {
       state.status = action.payload
+    },
+    screenSet(state, action: PayloadAction<AppScreen>) {
+      state.screen = action.payload
+    },
+    settingsHydratedSet(state, action: PayloadAction<boolean>) {
+      state.settingsHydrated = action.payload
     },
     inspectionSet(state, action: PayloadAction<MediaInspection | null>) {
       state.inspection = action.payload
@@ -48,6 +66,8 @@ const uiSlice = createSlice({
 export const {
   busySet,
   statusSet,
+  screenSet,
+  settingsHydratedSet,
   inspectionSet,
   cosmosHarnessSet,
   blobHarnessSet,
