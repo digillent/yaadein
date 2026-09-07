@@ -28,11 +28,15 @@ describe('findPreserveFileByHash', () => {
 })
 
 describe('resolveDuplicateComparePair', () => {
-  it('returns unavailable when Cosms has no ACCEPTED doc', async () => {
+  it('returns unavailable when Cosms has no ACCEPTED doc (scan-peer)', async () => {
     const work = mkdtempSync(join(tmpdir(), 'yaadein-dup-work-'))
     mkdirSync(join(work, 'duplicate', '2026', '01'), { recursive: true })
+    mkdirSync(join(work, 'preserve', '2026', '01'), { recursive: true })
+    const body = 'peer-only'
+    const preserveCopy = join(work, 'preserve', '2026', '01', 'stray.jpg')
     const dup = join(work, 'duplicate', '2026', '01', 'copy.jpg')
-    writeFileSync(dup, 'peer-only')
+    writeFileSync(preserveCopy, body)
+    writeFileSync(dup, body)
     const pair = await resolveDuplicateComparePair(work, dup, {
       decisions: {
         async lookupByHashes() {
@@ -45,9 +49,10 @@ describe('resolveDuplicateComparePair', () => {
     })
     expect(pair.original.status).toBe('unavailable')
     expect(pair.original.path).toBeNull()
+    expect(pair.original.detail).toMatch(/ACCEPTED/)
   })
 
-  it('matches local preserve original for Cosms ACCEPTED hash', async () => {
+  it('matches Cosms ACCEPTED original in local preserve/', async () => {
     const work = mkdtempSync(join(tmpdir(), 'yaadein-dup-work-'))
     mkdirSync(join(work, 'duplicate', '2026', '01'), { recursive: true })
     mkdirSync(join(work, 'preserve', '2026', '01'), { recursive: true })
@@ -86,7 +91,7 @@ describe('resolveDuplicateComparePair', () => {
     expect(pair.contentHash).toBe(hash)
   })
 
-  it('downloads original into preserve when missing locally', async () => {
+  it('downloads ACCEPTED original into preserve when missing locally', async () => {
     const work = mkdtempSync(join(tmpdir(), 'yaadein-dup-work-'))
     mkdirSync(join(work, 'duplicate', '2026', '01'), { recursive: true })
     mkdirSync(join(work, 'preserve'), { recursive: true })

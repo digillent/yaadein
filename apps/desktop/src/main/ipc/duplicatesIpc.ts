@@ -29,15 +29,16 @@ export function registerDuplicatesIpc(): void {
       _event,
       payload: { workingRoot?: unknown; duplicatePath?: unknown },
     ): Promise<DuplicateComparePair> => {
-      const auth = await getAuthService(app.getPath('userData'))
-      if (!auth.getSession().signedIn) {
-        throw new Error('Sign in required to resolve duplicate originals from Cosms/Blob.')
-      }
       if (typeof payload?.workingRoot !== 'string' || !payload.workingRoot.trim()) {
         throw new Error('workingRoot is required')
       }
       if (typeof payload?.duplicatePath !== 'string' || !payload.duplicatePath.trim()) {
         throw new Error('duplicatePath is required')
+      }
+
+      const auth = await getAuthService(app.getPath('userData'))
+      if (!auth.getSession().signedIn) {
+        throw new Error('Sign in required to resolve Cosms ACCEPTED originals for compare.')
       }
 
       return resolveDuplicateComparePair(payload.workingRoot, payload.duplicatePath, {

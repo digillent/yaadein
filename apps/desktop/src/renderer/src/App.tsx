@@ -897,7 +897,7 @@ export default function App() {
         <header className="appHeader">
           <div>
             <h1>{title}</h1>
-            <p className="tagline">Compare duplicate vs original — ↓ deletes the duplicate only.</p>
+            <p className="tagline">Compare duplicate vs Cosms ACCEPTED original — ↓ deletes the duplicate only.</p>
           </div>
           {statusBar}
         </header>

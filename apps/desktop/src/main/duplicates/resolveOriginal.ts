@@ -24,8 +24,9 @@ export type DuplicateResolveDeps = {
 }
 
 /**
- * Resolve Cosms ACCEPTED original for a file under duplicate/: local preserve/ match,
- * or Blob download into preserve/ when SYNCED and missing locally.
+ * Resolve original for a file under duplicate/: Cosms ACCEPTED only → local preserve/
+ * by size+hash, or Blob download into preserve/ when SYNCED.
+ * Scan-peer keepers that are not yet ACCEPTED are not compared.
  */
 export async function resolveDuplicateComparePair(
   workingRoot: string,
@@ -62,7 +63,8 @@ export async function resolveDuplicateComparePair(
         status: 'unavailable',
         path: null,
         cloudObjectId: null,
-        detail: 'No Cosms ACCEPTED document for this hash (scan-peer only or not yet accepted).',
+        detail:
+          'No Cosms ACCEPTED media for this hash. Duplicate compare only shows accepted originals — accept the keeper in review (or restore) first.',
       },
     }
   }
@@ -83,7 +85,7 @@ export async function resolveDuplicateComparePair(
         status: 'local',
         path: local,
         cloudObjectId: accepted.cloudObjectId ?? null,
-        detail: 'Matched local preserve/ by content hash.',
+        detail: 'Matched Cosms ACCEPTED original in local preserve/.',
       },
     }
   }
@@ -105,8 +107,8 @@ export async function resolveDuplicateComparePair(
         cloudObjectId: accepted.cloudObjectId ?? null,
         detail:
           accepted.cloudStatus !== 'SYNCED'
-            ? `Cosms ACCEPTED but cloudStatus is ${accepted.cloudStatus}; cannot download.`
-            : 'Original not found under preserve/.',
+            ? `Cosms ACCEPTED but cloudStatus is ${accepted.cloudStatus}; cannot download into preserve/.`
+            : 'Cosms ACCEPTED but original not found under preserve/.',
       },
     }
   }
@@ -147,7 +149,7 @@ export async function resolveDuplicateComparePair(
       status: 'downloaded',
       path: destPath,
       cloudObjectId,
-      detail: 'Downloaded from Blob into preserve/ and verified.',
+      detail: 'Downloaded Cosms ACCEPTED original from Blob into preserve/ and verified.',
     },
   }
 }

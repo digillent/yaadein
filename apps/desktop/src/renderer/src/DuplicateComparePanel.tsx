@@ -58,17 +58,22 @@ export function DuplicateComparePanel({
   const [pair, setPair] = useState<DuplicateComparePair | null>(null)
   const [dupPreview, setDupPreview] = useState<MediaPreview | null>(null)
   const [origPreview, setOrigPreview] = useState<MediaPreview | null>(null)
+  const [resolving, setResolving] = useState(false)
 
   const current = files[index] ?? null
 
   async function refreshList(): Promise<void> {
     await onBusy(async () => {
       try {
-        const listed = await window.yaadein.listDuplicates({ workingRoot })
+        // Same listing path as Tools cleanup — files under workingRoot/duplicate/.
+        const listed = await window.yaadein.listCleanup({
+          workingRoot,
+          bucket: 'duplicate',
+        })
         setFiles(listed.files)
         setIndex(0)
         setPair(null)
-        onStatus(`Duplicates: ${listed.files.length} file(s)`)
+        onStatus(`Duplicates in ${workingRoot}: ${listed.files.length} file(s)`)
       } catch (error) {
         setFiles([])
         onStatus(error instanceof Error ? error.message : String(error))
@@ -81,22 +86,41 @@ export function DuplicateComparePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workingRoot])
 
+  // Always preview the duplicate from the working folder, independent of Cosms resolve.
+  useEffect(() => {
+    if (!current) {
+      setDupPreview(null)
+      return
+    }
+    let cancelled = false
+    void window.yaadein.previewMedia(current.absolutePath).then(
+      (preview) => {
+        if (!cancelled) {
+          setDupPreview(preview)
+        }
+      },
+      () => {
+        if (!cancelled) {
+          setDupPreview(null)
+        }
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.absolutePath])
+
   useEffect(() => {
     if (!current) {
       setPair(null)
-      setDupPreview(null)
-      setOrigPreview(null)
-      return
-    }
-    if (!signedIn) {
-      setPair(null)
-      void window.yaadein.previewMedia(current.absolutePath).then(setDupPreview, () => setDupPreview(null))
       setOrigPreview(null)
       return
     }
 
     let cancelled = false
-    void onBusy(async () => {
+    setResolving(true)
+    void (async () => {
       try {
         const resolved = await window.yaadein.resolveDuplicate({
           workingRoot,
@@ -106,25 +130,33 @@ export function DuplicateComparePanel({
           return
         }
         setPair(resolved)
-        const [dup, orig] = await Promise.all([
-          window.yaadein.previewMedia(resolved.duplicatePath),
-          resolved.original.path
-            ? window.yaadein.previewMedia(resolved.original.path)
-            : Promise.resolve(null),
-        ])
-        if (cancelled) {
-          return
+        if (resolved.original.path) {
+          try {
+            const orig = await window.yaadein.previewMedia(resolved.original.path)
+            if (!cancelled) {
+              setOrigPreview(orig)
+            }
+          } catch {
+            if (!cancelled) {
+              setOrigPreview(null)
+            }
+          }
+        } else {
+          setOrigPreview(null)
         }
-        setDupPreview(dup)
-        setOrigPreview(orig)
         onStatus(resolved.original.detail)
       } catch (error) {
         if (!cancelled) {
           setPair(null)
+          setOrigPreview(null)
           onStatus(error instanceof Error ? error.message : String(error))
         }
+      } finally {
+        if (!cancelled) {
+          setResolving(false)
+        }
       }
-    })
+    })()
     return () => {
       cancelled = true
     }
@@ -147,7 +179,10 @@ export function DuplicateComparePanel({
           return
         }
         onStatus(`Deleted duplicate (${result.deleted.length}). Original untouched.`)
-        const listed = await window.yaadein.listDuplicates({ workingRoot })
+        const listed = await window.yaadein.listCleanup({
+          workingRoot,
+          bucket: 'duplicate',
+        })
         setFiles(listed.files)
         setIndex((i) => (listed.files.length === 0 ? 0 : Math.min(i, listed.files.length - 1)))
         setPair(null)
@@ -204,14 +239,16 @@ export function DuplicateComparePanel({
       </div>
 
       <p className="hint">
-        Original (preserve/ or Blob) ‖ duplicate. ← prev · → next · ↓ delete duplicate only. Never
-        deletes preserve/.
+        Original = Cosms ACCEPTED media (preserve/ or Blob) ‖ duplicate under {workingRoot}
+        /duplicate/. ← prev · → next · ↓ delete duplicate only.
       </p>
 
       <p className="status" role="status">
         {files.length === 0
-          ? 'No files under duplicate/.'
-          : `${index + 1} / ${files.length}: ${current?.relativePath ?? ''}`}
+          ? `No files under ${workingRoot}/duplicate/.`
+          : `${index + 1} / ${files.length}: ${current?.relativePath ?? ''}${
+              resolving ? ' · resolving original…' : ''
+            }`}
       </p>
 
       <div className="dupSideBySide">

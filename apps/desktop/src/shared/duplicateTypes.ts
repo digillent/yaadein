@@ -1,4 +1,4 @@
-/** Resolved pair for duplicate vs Cosms-accepted original. */
+/** Resolved pair for duplicate vs Cosms ACCEPTED original. */
 export type DuplicateOriginalStatus = 'local' | 'downloaded' | 'unavailable'
 
 export type DuplicateComparePair = {
@@ -8,7 +8,7 @@ export type DuplicateComparePair = {
   fileSize: number
   original: {
     status: DuplicateOriginalStatus
-    /** Local path for preview (preserve/ or just-downloaded). */
+    /** Local path for preview (preserve/ or just-downloaded ACCEPTED original). */
     path: string | null
     cloudObjectId: string | null
     detail: string
