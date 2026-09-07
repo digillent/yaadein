@@ -405,8 +405,9 @@ export default function App() {
       <section className="devPanel" aria-label="Scan classify harness">
         <h2>Scan + classify (Cosmos)</h2>
         <p className="hint">
-          Walk a folder, hash media, batch-lookup Cosms. Known REJECTED → rejected/; known ACCEPTED →
-          duplicate/; unknowns stay for review (M8). Requires sign-in + network. No Blob during scan.
+          Walk a folder, size-group peer candidates, hash, batch-lookup Cosms. REJECTED → rejected/;
+          ACCEPTED or same-hash scan peer → duplicate/ (no Cosms DUPLICATE doc); unknowns stay for
+          review.
         </p>
         <div className="row">
           <button type="button" disabled={busy} onClick={() => void chooseScanRoot()}>

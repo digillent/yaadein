@@ -114,9 +114,48 @@ describe('scanAndClassify', () => {
         expect.objectContaining({ bucket: 'duplicate' }),
       ]),
     )
+    expect(progressPhases).toContain('sizing')
     expect(progressPhases).toContain('looking_up')
     expect(progressPhases.at(-1)).toBe('done')
     expect(existsSync(join(root, 'unk.jpg'))).toBe(true)
+    expect(result.results.find((r) => r.outcome === 'moved_duplicate')).toMatchObject({
+      duplicateOf: 'cosmos_accepted',
+    })
+  })
+
+  it('moves in-batch same-hash peers to duplicate/ without Cosms docs', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'yaadein-scan-peer-'))
+    const work = mkdtempSync(join(tmpdir(), 'yaadein-work-'))
+    const bytes = 'identical-bytes'
+    writeFileSync(join(root, 'one.jpg'), bytes)
+    writeFileSync(join(root, 'two.jpg'), bytes)
+    writeFileSync(join(root, 'other.jpg'), 'different')
+
+    const moves: Array<{ sourcePath: string; bucket: string }> = []
+    const result = await scanAndClassify(
+      { scanRoots: [root], workingRoot: work },
+      {
+        requireSignedIn: () => undefined,
+        decisions: { lookupByHashes: vi.fn(async () => []) },
+        moveFile: async (input) => {
+          moves.push({ sourcePath: input.sourcePath, bucket: input.bucket })
+          return {
+            destinationPath: join(work, input.bucket, 'moved.jpg'),
+            bucket: input.bucket,
+            yearMonth: '2026/01',
+          }
+        },
+      },
+    )
+
+    expect(result.peerCandidateSizeCount).toBeGreaterThanOrEqual(1)
+    expect(result.skippedUnknown).toBe(2) // first identical + other.jpg
+    expect(result.movedDuplicate).toBe(1)
+    expect(moves).toEqual([expect.objectContaining({ bucket: 'duplicate' })])
+    expect(result.results.find((r) => r.outcome === 'moved_duplicate')).toMatchObject({
+      duplicateOf: 'scan_peer',
+    })
+    expect(existsSync(join(root, 'one.jpg')) || existsSync(join(root, 'two.jpg'))).toBe(true)
   })
 
   it('fails closed when Cosmos lookup throws', async () => {

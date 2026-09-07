@@ -1,3 +1,4 @@
+import { stat } from 'node:fs/promises'
 import type { MediaDecisionDocument } from '../../shared/decisionTypes'
 import type {
   ScanClassifyRequest,
@@ -7,7 +8,7 @@ import type {
 } from '../../shared/scanTypes'
 import { hashFileContent } from '../media/hashFile'
 import { moveMediaIntoWorkingFolder } from '../workingFolder'
-import type { WorkingBucket } from '../workingFolder/types'
+import { classifyExactDuplicate, peerCandidateSizes } from './exactDuplicates'
 import { walkMediaFiles } from './walkMediaFiles'
 
 export const SCAN_LOOKUP_BATCH_SIZE = 25
@@ -27,9 +28,9 @@ export type ScanClassifyDeps = {
 }
 
 /**
- * Hash media under scan roots, batch-lookup Cosms, auto-move known decisions.
- * ACCEPTED → duplicate/; REJECTED → rejected/; unknown → skip (M8 review).
- * Does not touch Blob. Fails closed when not signed in.
+ * Walk → size-group peer candidates → hash → batch Cosms lookup → move knowns.
+ * ACCEPTED (Cosms) or same-hash scan peer → duplicate/ (no Cosms DUPLICATE doc).
+ * REJECTED → rejected/. Unknown first-of-hash → skip for review.
  */
 export async function scanAndClassify(
   request: ScanClassifyRequest,
@@ -58,6 +59,7 @@ export async function scanAndClassify(
     movedDuplicate: 0,
     skippedUnknown: 0,
     errors: 0,
+    peerCandidateSizeCount: 0,
   }
   emit(deps, progress)
 
@@ -66,9 +68,36 @@ export async function scanAndClassify(
   emit(deps, progress)
 
   const results: ScanFileResult[] = []
+  /** Hashes already classified in this scan (keeper unknown or moved). */
+  const seenHashes = new Set<string>()
 
-  for (let offset = 0; offset < mediaPaths.length; offset += batchSize) {
-    const chunk = mediaPaths.slice(offset, offset + batchSize)
+  progress.phase = 'sizing'
+  const sized: Array<{ sourcePath: string; fileSize: number }> = []
+  for (const sourcePath of mediaPaths) {
+    progress.currentPath = sourcePath
+    emit(deps, progress)
+    try {
+      const fileStat = await stat(sourcePath)
+      sized.push({ sourcePath, fileSize: fileStat.size })
+    } catch (error) {
+      progress.errors += 1
+      progress.filesProcessed += 1
+      results.push({
+        sourcePath,
+        outcome: 'error',
+        error: error instanceof Error ? error.message : String(error),
+      })
+      emit(deps, progress)
+    }
+  }
+  const peerSizes = peerCandidateSizes(sized)
+  progress.peerCandidateSizeCount = peerSizes.size
+  emit(deps, progress)
+
+  const pathsToHash = sized.map((f) => f.sourcePath)
+
+  for (let offset = 0; offset < pathsToHash.length; offset += batchSize) {
+    const chunk = pathsToHash.slice(offset, offset + batchSize)
     const hashed: Array<{ sourcePath: string; contentHash: string; fileSize: number }> = []
 
     progress.phase = 'hashing'
@@ -116,7 +145,14 @@ export async function scanAndClassify(
       emit(deps, progress)
       try {
         const known = byHash.get(item.contentHash)
-        if (!known) {
+        const classification = classifyExactDuplicate({
+          contentHash: item.contentHash,
+          cosmosDecision: known?.decision,
+          seenHashes,
+        })
+
+        if (classification.kind === 'unknown') {
+          seenHashes.add(item.contentHash)
           progress.skippedUnknown += 1
           progress.filesProcessed += 1
           results.push({
@@ -129,16 +165,16 @@ export async function scanAndClassify(
           continue
         }
 
-        const bucket: WorkingBucket = known.decision === 'REJECTED' ? 'rejected' : 'duplicate'
-        // Known ACCEPTED hashes are local duplicates only (no Cosms DUPLICATE doc).
+        const bucket = classification.kind === 'rejected' ? 'rejected' : 'duplicate'
         const moved = await moveFile({
           sourcePath: item.sourcePath,
           workingRoot: request.workingRoot,
           bucket,
           nameDisambiguator: item.contentHash.slice(0, 8),
         })
+        seenHashes.add(item.contentHash)
 
-        if (bucket === 'rejected') {
+        if (classification.kind === 'rejected') {
           progress.movedRejected += 1
           results.push({
             sourcePath: item.sourcePath,
@@ -155,7 +191,7 @@ export async function scanAndClassify(
             contentHash: item.contentHash,
             fileSize: item.fileSize,
             outcome: 'moved_duplicate',
-            decision: 'ACCEPTED',
+            duplicateOf: classification.reason,
             destinationPath: moved.destinationPath,
           })
         }
@@ -184,6 +220,7 @@ export async function scanAndClassify(
     movedDuplicate: progress.movedDuplicate,
     skippedUnknown: progress.skippedUnknown,
     errors: progress.errors,
+    peerCandidateSizeCount: progress.peerCandidateSizeCount ?? 0,
     results,
   }
 }

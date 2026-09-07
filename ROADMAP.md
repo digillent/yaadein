@@ -107,6 +107,10 @@ flowchart TD
 
 **Goal:** Size candidates → SHA-256; duplicate only on hash match vs Cosms accepted / in-batch peers; move to `duplicate/`; no Cosms duplicate doc.
 
+**Status:** Done.
+
+**In scope (delivered):** Size-group peer candidates; classify duplicates only on SHA-256 match vs Cosms `ACCEPTED` or earlier scan peer; move to `duplicate/`; never write Cosms `DUPLICATE` docs; scan harness reports `duplicateOf`.
+
 ---
 
 ## Milestone 10 — Redux UX: progress, queues, settings
