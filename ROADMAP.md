@@ -177,9 +177,9 @@ Solo MVP (M1–M12) delivered cloud-backed scan/review/cleanup/restore. The mile
 
 **Goal:** Review unknowns with a card-style UX: media front-and-center, keyboard arrows for actions.
 
-**Status:** Not started.
+**Status:** Done.
 
-**In scope:** Show current unknown as image or **playable video**; ← previous, → next, ↑ accept, ↓ reject; reuse existing accept (Cosms + Blob `SYNCED` → `preserve/`) and reject (Cosms lean → `rejected/`) pipelines; focus/keyboard affordances clear in UI.
+**In scope (delivered):** Dedicated review screen; image + **playable video** via `yaadein-media://` stream protocol; ← prev, → next, ↑ accept, ↓ reject (buttons + keyboard); reuse accept/reject pipelines; auto-open review after scan when unknowns exist.
 
 **Out of scope:** Rejected grid; duplicate compare; tag editing UI beyond what’s already shown; packaging.
 

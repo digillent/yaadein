@@ -18,9 +18,14 @@ export type ReviewAcceptResult = {
   sourceMoved: true
 }
 
+export type MediaPreviewKind = 'image' | 'video' | 'unsupported'
+
 export type MediaPreview = {
   sourcePath: string
   mediaType: string
-  /** data: URL for images; null for non-previewable types in M8 harness. */
+  kind: MediaPreviewKind
+  /** Custom protocol URL for img/video elements (works for large files). */
+  streamUrl: string | null
+  /** Optional inline data URL for small images; prefer streamUrl when both set. */
   dataUrl: string | null
 }

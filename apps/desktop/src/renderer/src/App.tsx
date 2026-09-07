@@ -25,6 +25,8 @@ import {
   eventDateOverrideSet,
   type WorkingBucket,
 } from './store/settingsSlice'
+import { reviewActionFromKey } from './reviewKeys'
+import { ReviewMediaStage } from './ReviewMediaStage'
 import {
   busySet,
   statusSet,
@@ -392,6 +394,9 @@ export default function App() {
             `Scan done: ${result.movedRejected} rejected, ${result.movedDuplicate} duplicate, ${result.skippedUnknown} unknown, ${result.errors} errors`,
           ),
         )
+        if (unknowns.length > 0) {
+          dispatch(screenSet('review'))
+        }
       } catch (error) {
         dispatch(scanFailed())
         dispatch(statusSet(error instanceof Error ? error.message : String(error)))
@@ -533,6 +538,44 @@ export default function App() {
     })
   }
 
+  useEffect(() => {
+    if (screen !== 'review') {
+      return
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (busy) {
+        return
+      }
+      const target = event.target as HTMLElement | null
+      const tag = target?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+        return
+      }
+      const action = reviewActionFromKey(event.key)
+      if (!action) {
+        return
+      }
+      event.preventDefault()
+      if (action === 'prev') {
+        dispatch(reviewIndexSet(reviewIndex - 1))
+        return
+      }
+      if (action === 'next') {
+        dispatch(reviewIndexSet(reviewIndex + 1))
+        return
+      }
+      if (action === 'accept') {
+        void acceptCurrent()
+        return
+      }
+      void rejectCurrent()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  })
+
   if (!settingsHydrated) {
     return (
       <main className="shell">
@@ -607,6 +650,14 @@ export default function App() {
             onClick={() => dispatch(screenSet('scan'))}
           >
             New scan
+          </button>
+          <button
+            type="button"
+            className="primaryAction"
+            disabled={busy || reviewQueue.length === 0}
+            onClick={() => dispatch(screenSet('review'))}
+          >
+            Review unknowns{reviewQueue.length > 0 ? ` (${reviewQueue.length})` : ''}
           </button>
           <button
             type="button"
@@ -799,6 +850,85 @@ export default function App() {
     )
   }
 
+  if (screen === 'review') {
+    return (
+      <main className="shell reviewShell">
+        <header className="appHeader">
+          <div>
+            <h1>{title}</h1>
+            <p className="tagline">
+              ↑ accept · ↓ reject · ← prev · → next · scroll or buttons to zoom
+            </p>
+          </div>
+          {statusBar}
+        </header>
+        <div className="row navRow">
+          <button type="button" disabled={busy} onClick={() => dispatch(screenSet('home'))}>
+            Home
+          </button>
+          <button type="button" disabled={busy} onClick={() => dispatch(screenSet('scan'))}>
+            Scan
+          </button>
+        </div>
+
+        <section className="reviewCard" aria-label="Tinder-style review">
+          <p className="reviewCounter" role="status">
+            {reviewQueue.length === 0
+              ? 'Queue empty — run a scan to load unknowns.'
+              : `${reviewIndex + 1} / ${reviewQueue.length}`}
+          </p>
+          <ReviewMediaStage preview={preview} currentReviewPath={currentReviewPath} />
+          <p className="reviewPath" title={currentReviewPath ?? undefined}>
+            {currentReviewPath ?? '—'}
+          </p>
+          <div className="reviewKeyLegend" aria-hidden="true">
+            <span>← prev</span>
+            <span>→ next</span>
+            <span>↑ accept</span>
+            <span>↓ reject</span>
+          </div>
+          <div className="row reviewActions">
+            <button
+              type="button"
+              disabled={busy || reviewQueue.length === 0}
+              onClick={() => dispatch(reviewIndexSet(reviewIndex - 1))}
+            >
+              ← Prev
+            </button>
+            <button
+              type="button"
+              disabled={busy || !session.signedIn || !currentReviewPath || !workingRoot}
+              onClick={() => void rejectCurrent()}
+            >
+              ↓ Reject
+            </button>
+            <button
+              type="button"
+              disabled={busy || !session.signedIn || !currentReviewPath || !workingRoot}
+              onClick={() => void acceptCurrent()}
+            >
+              ↑ Accept
+            </button>
+            <button
+              type="button"
+              disabled={busy || reviewQueue.length === 0}
+              onClick={() => dispatch(reviewIndexSet(reviewIndex + 1))}
+            >
+              Next →
+            </button>
+          </div>
+          {!session.signedIn ? (
+            <div className="row">
+              <button type="button" disabled={busy} onClick={() => void signIn()}>
+                Sign in to accept / reject
+              </button>
+            </div>
+          ) : null}
+        </section>
+      </main>
+    )
+  }
+
   // scan workspace (default for screen === 'scan')
   return (
     <main className="shell">
@@ -814,7 +944,7 @@ export default function App() {
       <section className="devPanel" aria-label="Scan">
         <h2>Scan + classify</h2>
         <p className="hint">
-          Choose a scan folder (saved), then run. Unknowns load into the review queue below.
+          Choose a scan folder (saved), then run. Unknowns open in Tinder-style review (arrow keys).
         </p>
         <div className="row">
           <button type="button" disabled={busy} onClick={() => void chooseScanRoot()}>
@@ -826,6 +956,13 @@ export default function App() {
             onClick={() => void runScan()}
           >
             Run scan
+          </button>
+          <button
+            type="button"
+            disabled={busy || reviewQueue.length === 0}
+            onClick={() => dispatch(screenSet('review'))}
+          >
+            Open review{reviewQueue.length > 0 ? ` (${reviewQueue.length})` : ''}
           </button>
           {!session.signedIn ? (
             <button type="button" disabled={busy} onClick={() => void signIn()}>
@@ -841,51 +978,6 @@ export default function App() {
             : 'No scan in progress.'}
         </p>
         {scanResult ? <pre className="inspection">{JSON.stringify(scanResult, null, 2)}</pre> : null}
-      </section>
-
-      <section className="devPanel" aria-label="Review queue">
-        <h2>Review queue</h2>
-        <p className="hint">
-          Accept → Cosms + Blob SYNCED → preserve/. Reject → Cosms lean → rejected/.
-        </p>
-        <div className="row">
-          <button
-            type="button"
-            disabled={busy || !session.signedIn || !currentReviewPath || !workingRoot}
-            onClick={() => void acceptCurrent()}
-          >
-            Accept → preserve
-          </button>
-          <button
-            type="button"
-            disabled={busy || !session.signedIn || !currentReviewPath || !workingRoot}
-            onClick={() => void rejectCurrent()}
-          >
-            Reject → rejected
-          </button>
-          <button
-            type="button"
-            disabled={busy || reviewQueue.length === 0}
-            onClick={() => dispatch(reviewIndexSet(reviewIndex + 1))}
-          >
-            Next in queue
-          </button>
-        </div>
-        <p className="status" role="status">
-          {reviewQueue.length === 0
-            ? 'Queue empty — run scan to load unknowns.'
-            : `${reviewIndex + 1}/${reviewQueue.length}: ${currentReviewPath}`}
-        </p>
-        {preview?.dataUrl ? (
-          <img
-            className="inspection"
-            src={preview.dataUrl}
-            alt={preview.sourcePath}
-            style={{ maxWidth: '100%', maxHeight: 360, objectFit: 'contain' }}
-          />
-        ) : currentReviewPath ? (
-          <p className="hint">No image preview (video or large file).</p>
-        ) : null}
       </section>
 
       <section className="devPanel" aria-label="Local cleanup">

@@ -108,5 +108,7 @@ describe('redux store slices', () => {
     expect(store.getState().ui.screen).toBe('scan')
     store.dispatch(screenSet('viewMedia'))
     expect(store.getState().ui.screen).toBe('viewMedia')
+    store.dispatch(screenSet('review'))
+    expect(store.getState().ui.screen).toBe('review')
   })
 })
