@@ -97,18 +97,9 @@ flowchart TD
 
 **Goal:** Accept/reject unknowns with Cosms-first accept path.
 
-**In scope:**
+**Status:** Done.
 
-- Review queue + preview
-- Reject → Cosms lean → move `rejected/`
-- Accept → Cosms full → Blob `SYNCED` → **then** move `preserve/`
-- Upload failure: source unmoved; retry
-
-**Out of scope:** Offline accept queues; rich tag-edit product UI.
-
-**Expected tests:** Ordering tests (no preserve move before `SYNCED`).
-
-**Working state:** End-to-end solo cloud-backed loop.
+**In scope (delivered):** Review queue + image preview; reject → Cosms lean → `rejected/`; accept → Cosms full → Blob `SYNCED` → then `preserve/`; upload failure leaves source unmoved; ordering tests. No offline queues / rich tag UI.
 
 ---
 

@@ -4,6 +4,11 @@ import type { MediaInspection, MediaTags } from '../shared/mediaTypes'
 import type { AuthSession, GraphMeProfile } from '../shared/authTypes'
 import type { AcceptUploadHarnessResult, CosmosHarnessResult } from '../shared/decisionTypes'
 import type { ScanClassifyRequest, ScanClassifyResult, ScanProgress } from '../shared/scanTypes'
+import type {
+  MediaPreview,
+  ReviewAcceptResult,
+  ReviewRejectResult,
+} from '../shared/reviewTypes'
 
 export type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
 
@@ -36,6 +41,9 @@ export type {
   ScanClassifyRequest,
   ScanClassifyResult,
   ScanProgress,
+  MediaPreview,
+  ReviewAcceptResult,
+  ReviewRejectResult,
 }
 
 const api = {
@@ -72,6 +80,18 @@ const api = {
       ipcRenderer.removeListener('scan:progress', handler)
     }
   },
+  previewMedia: (sourcePath: string): Promise<MediaPreview> =>
+    ipcRenderer.invoke('review:preview', sourcePath),
+  reviewAccept: (payload: {
+    sourcePath: string
+    workingRoot: string
+    captureDateIso?: string
+  }): Promise<ReviewAcceptResult> => ipcRenderer.invoke('review:accept', payload),
+  reviewReject: (payload: {
+    sourcePath: string
+    workingRoot: string
+    captureDateIso?: string
+  }): Promise<ReviewRejectResult> => ipcRenderer.invoke('review:reject', payload),
 }
 
 contextBridge.exposeInMainWorld('yaadein', api)
