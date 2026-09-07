@@ -30,3 +30,7 @@ export function isMediaPath(sourcePath: string): boolean {
 export function isLikelyImagePath(sourcePath: string): boolean {
   return mediaTypeFromPath(sourcePath).startsWith('image/')
 }
+
+export function isLikelyVideoPath(sourcePath: string): boolean {
+  return mediaTypeFromPath(sourcePath).startsWith('video/')
+}

@@ -1,24 +1,39 @@
-import { readFile } from 'node:fs/promises'
-import { isLikelyImagePath, mediaTypeFromPath } from '../media/mediaType'
+import { readFile, stat } from 'node:fs/promises'
+import { isLikelyImagePath, isLikelyVideoPath, mediaTypeFromPath } from '../media/mediaType'
 import type { MediaPreview } from '../../shared/reviewTypes'
+import { buildMediaStreamUrl } from './mediaStreamProtocol'
 
-const MAX_PREVIEW_BYTES = 8 * 1024 * 1024
+const MAX_INLINE_IMAGE_BYTES = 8 * 1024 * 1024
 
-/** Build a data-URL preview for images (CSP-safe). Non-images return dataUrl null. */
+/** Build preview metadata: stream URL for img/video; optional data URL for small images. */
 export async function buildMediaPreview(sourcePath: string): Promise<MediaPreview> {
   const mediaType = mediaTypeFromPath(sourcePath)
-  if (!isLikelyImagePath(sourcePath)) {
-    return { sourcePath, mediaType, dataUrl: null }
+
+  if (isLikelyVideoPath(sourcePath)) {
+    return {
+      sourcePath,
+      mediaType,
+      kind: 'video',
+      streamUrl: buildMediaStreamUrl(sourcePath),
+      dataUrl: null,
+    }
   }
 
-  const bytes = await readFile(sourcePath)
-  if (bytes.byteLength > MAX_PREVIEW_BYTES) {
-    return { sourcePath, mediaType, dataUrl: null }
+  if (isLikelyImagePath(sourcePath)) {
+    const streamUrl = buildMediaStreamUrl(sourcePath)
+    const size = (await stat(sourcePath)).size
+    if (size > MAX_INLINE_IMAGE_BYTES) {
+      return { sourcePath, mediaType, kind: 'image', streamUrl, dataUrl: null }
+    }
+    const bytes = await readFile(sourcePath)
+    return {
+      sourcePath,
+      mediaType,
+      kind: 'image',
+      streamUrl,
+      dataUrl: `data:${mediaType};base64,${bytes.toString('base64')}`,
+    }
   }
 
-  return {
-    sourcePath,
-    mediaType,
-    dataUrl: `data:${mediaType};base64,${bytes.toString('base64')}`,
-  }
+  return { sourcePath, mediaType, kind: 'unsupported', streamUrl: null, dataUrl: null }
 }

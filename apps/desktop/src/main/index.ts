@@ -11,9 +11,15 @@ import { registerReviewIpc } from './ipc/reviewIpc'
 import { registerCleanupIpc } from './ipc/cleanupIpc'
 import { registerRestoreIpc } from './ipc/restoreIpc'
 import { registerSettingsIpc } from './ipc/settingsIpc'
+import {
+  registerMediaStreamProtocol,
+  registerMediaStreamScheme,
+} from './review/mediaStreamProtocol'
 
 // Prefer product name over scoped package name for userData (`…/Yaadein`).
 app.setName('Yaadein')
+
+registerMediaStreamScheme()
 
 // Local dev: load apps/desktop/.env into process.env. Packaged builds embed public config at compile time.
 if (!app.isPackaged) {
@@ -51,6 +57,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  registerMediaStreamProtocol()
   registerSettingsIpc()
   registerAuthIpc()
   registerCosmosIpc()

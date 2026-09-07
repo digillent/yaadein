@@ -7,6 +7,7 @@ export type AppScreen =
   | 'setup'
   | 'settings'
   | 'scan'
+  | 'review'
   | 'viewMedia'
   | 'tools'
 
