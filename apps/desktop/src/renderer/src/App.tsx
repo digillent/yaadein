@@ -84,6 +84,25 @@ export default function App() {
   }, [dispatch])
 
   useEffect(() => {
+    void window.yaadein.getPersistedSettings().then(
+      (settings) => {
+        if (settings.workingRoot) {
+          dispatch(workingRootSet(settings.workingRoot))
+        }
+        if (settings.scanRoot) {
+          dispatch(scanRootSet(settings.scanRoot))
+        }
+        if (settings.workingRoot) {
+          dispatch(statusSet(`Working folder: ${settings.workingRoot}`))
+        }
+      },
+      () => {
+        /* first launch or unreadable settings — ignore */
+      },
+    )
+  }, [dispatch])
+
+  useEffect(() => {
     return window.yaadein.onScanProgress((progress) => {
       dispatch(scanProgressUpdated(progress))
     })
@@ -132,6 +151,12 @@ export default function App() {
     const path = await window.yaadein.pickWorkingDirectory()
     if (path) {
       dispatch(workingRootSet(path))
+      try {
+        await window.yaadein.savePersistedSettings({ workingRoot: path })
+      } catch (error) {
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+        return
+      }
       dispatch(statusSet(`Working folder: ${path}`))
     }
   }
@@ -311,6 +336,12 @@ export default function App() {
     const path = await window.yaadein.pickWorkingDirectory()
     if (path) {
       dispatch(scanRootSet(path))
+      try {
+        await window.yaadein.savePersistedSettings({ scanRoot: path })
+      } catch (error) {
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+        return
+      }
       dispatch(statusSet(`Scan root: ${path}`))
     }
   }
@@ -500,7 +531,9 @@ export default function App() {
 
       <section className="devPanel" aria-label="Settings">
         <h2>Settings</h2>
-        <p className="hint">Working folder and scan root used by classify, review, and moves.</p>
+        <p className="hint">
+          Working folder and scan root (saved under app userData; restored on next launch).
+        </p>
         <div className="row">
           <button type="button" disabled={busy} onClick={() => void chooseWorkingRoot()}>
             Choose working folder

@@ -10,6 +10,7 @@ import { registerScanIpc } from './ipc/scanIpc'
 import { registerReviewIpc } from './ipc/reviewIpc'
 import { registerCleanupIpc } from './ipc/cleanupIpc'
 import { registerRestoreIpc } from './ipc/restoreIpc'
+import { registerSettingsIpc } from './ipc/settingsIpc'
 
 // Prefer product name over scoped package name for userData (`…/Yaadein`).
 app.setName('Yaadein')
@@ -50,6 +51,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  registerSettingsIpc()
   registerAuthIpc()
   registerCosmosIpc()
   registerBlobIpc()

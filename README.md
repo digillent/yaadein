@@ -64,3 +64,10 @@ pnpm dist        # mac + win targets
 Also available: `pnpm --filter @yaadein/desktop dist:dir` (unpacked app only, faster smoke).
 
 Builds are unsigned local packages (no notarization / auto-update). Do not embed Cosms or storage **account keys**.
+
+Working folder and scan root are saved in app userData as `desktop-settings.json` and restored on the next launch (Mac and Windows):
+
+- macOS: `~/Library/Application Support/Yaadein/desktop-settings.json`
+- Windows: `%APPDATA%\Yaadein\desktop-settings.json` (typically `C:\Users\<you>\AppData\Roaming\Yaadein\`)
+
+Rebuild with `pnpm dist:mac` / `pnpm dist:win` after pulling so packaged apps include this behavior.
