@@ -37,7 +37,7 @@ flowchart TD
   cosmosReject --> moveRejected
 ```
 
-Implementation follows [ROADMAP.md](ROADMAP.md). **MVP milestones M1–M12 complete.** Set `apps/desktop/.env` from `.env.example` (Entra IDs + Cosms + Blob endpoints).
+Implementation follows [ROADMAP.md](ROADMAP.md). **MVP milestones M1–M12 complete.** Next: **product UX M13–M18** (packaging, home shell, Tinder review, rejected/duplicate libraries, cherish + tags). Set `apps/desktop/.env` from `.env.example` (Entra IDs + Cosms + Blob endpoints).
 
 ## Development
 
