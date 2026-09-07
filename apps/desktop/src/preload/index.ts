@@ -9,6 +9,7 @@ import type {
   ReviewAcceptResult,
   ReviewRejectResult,
 } from '../shared/reviewTypes'
+import type { CleanupBucket, CleanupDeleteResult, CleanupListResult } from '../shared/cleanupTypes'
 
 export type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
 
@@ -44,6 +45,9 @@ export type {
   MediaPreview,
   ReviewAcceptResult,
   ReviewRejectResult,
+  CleanupBucket,
+  CleanupListResult,
+  CleanupDeleteResult,
 }
 
 const api = {
@@ -92,6 +96,15 @@ const api = {
     workingRoot: string
     captureDateIso?: string
   }): Promise<ReviewRejectResult> => ipcRenderer.invoke('review:reject', payload),
+  listCleanup: (payload: {
+    workingRoot: string
+    bucket: CleanupBucket
+  }): Promise<CleanupListResult> => ipcRenderer.invoke('cleanup:list', payload),
+  deleteCleanup: (payload: {
+    workingRoot: string
+    bucket: CleanupBucket
+    paths: string[]
+  }): Promise<CleanupDeleteResult> => ipcRenderer.invoke('cleanup:delete', payload),
 }
 
 contextBridge.exposeInMainWorld('yaadein', api)

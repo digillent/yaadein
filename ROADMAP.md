@@ -127,6 +127,10 @@ flowchart TD
 
 **Goal:** User-confirmed delete under `rejected/` / `duplicate/`; retain Cosms decisions.
 
+**Status:** Done.
+
+**In scope (delivered):** List + confirmed delete for `rejected/` and `duplicate/` only; path containment guards; never `preserve/`; no Cosms deletes; empty-dir prune; harness UI + unit tests.
+
 ---
 
 ## Milestone 12 — Download, restore, and preserve rebuild

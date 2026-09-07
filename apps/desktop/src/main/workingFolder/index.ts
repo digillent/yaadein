@@ -11,3 +11,9 @@ export {
 export { ensureWorkingFolder } from './ensureTree'
 export { moveMediaIntoWorkingFolder } from './safeMove'
 export { captureDateFromStats, resolveFilesystemCaptureDate } from './filesystemCaptureDate'
+export {
+  assertCleanupBucket,
+  listCleanupFiles,
+  deleteCleanupFiles,
+  isPathInsideRoot,
+} from './cleanupLocal'

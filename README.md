@@ -37,7 +37,7 @@ flowchart TD
   cosmosReject --> moveRejected
 ```
 
-Implementation follows [ROADMAP.md](ROADMAP.md). **Next: Milestone 11 — Local cleanup.** Set `apps/desktop/.env` from `.env.example` (Entra IDs + Cosms + Blob endpoints).
+Implementation follows [ROADMAP.md](ROADMAP.md). **Next: Milestone 12 — Download / restore.** Set `apps/desktop/.env` from `.env.example` (Entra IDs + Cosms + Blob endpoints).
 
 ## Development
 
