@@ -35,6 +35,7 @@ describe('cleanupLocal', () => {
 
     const listed = await listCleanupFiles(root, 'rejected')
     expect(listed.files.map((f) => f.relativePath)).toEqual(['2026/01/junk.jpg'])
+    expect(listed.files[0]?.yearMonth).toBe('2026/01')
 
     const deleted = await deleteCleanupFiles(root, 'rejected', [rejectedFile])
     expect(deleted.deleted).toEqual([rejectedFile])

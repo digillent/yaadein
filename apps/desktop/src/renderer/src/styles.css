@@ -166,6 +166,60 @@ button.primaryAction:hover:not(:disabled) {
   margin-top: 0.25rem;
 }
 
+.rejectedLibrary {
+  margin-top: 1rem;
+  max-width: 64rem;
+}
+
+.rejectedGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.rejectedCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.55rem;
+  background: #fff;
+  border: 1px solid #d6d3d1;
+  border-radius: 8px;
+}
+
+.rejectedSelect {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: #57534e;
+}
+
+.rejectedThumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 7.5rem;
+  overflow: hidden;
+  background: #f5f5f4;
+  border-radius: 4px;
+}
+
+.rejectedThumb img,
+.rejectedThumb video {
+  max-width: 100%;
+  max-height: 7.5rem;
+  object-fit: contain;
+}
+
+.rejectedName {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #44403c;
+  word-break: break-all;
+}
+
 .devPanel {
   margin-top: 2.5rem;
   max-width: 40rem;

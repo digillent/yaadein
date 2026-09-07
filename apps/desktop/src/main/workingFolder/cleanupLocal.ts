@@ -1,6 +1,7 @@
 import { readdir, rm, stat, unlink } from 'node:fs/promises'
 import { relative, resolve, sep } from 'node:path'
 import { bucketDirectory } from './paths'
+import { yearMonthFromCleanupRelativePath } from './yearMonthPath'
 import type { CleanupBucket, CleanupFileEntry, CleanupListResult } from '../../shared/cleanupTypes'
 import { CLEANUP_BUCKETS } from '../../shared/cleanupTypes'
 
@@ -50,6 +51,7 @@ export async function listCleanupFiles(
       absolutePath,
       relativePath: relative(bucketRoot, absolutePath),
       sizeBytes: fileStat.size,
+      yearMonth: yearMonthFromCleanupRelativePath(relative(bucketRoot, absolutePath)),
     })
   })
 

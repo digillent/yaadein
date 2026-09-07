@@ -133,7 +133,7 @@ Post-MVP product experience on top of the cloud-backed desktop core. Details and
 | **M13** | Mac and Windows executables / installers (**Done**) |
 | **M14** | Home (scan or view media); persist working folder—do not re-prompt if already set (**Done**) |
 | **M15** | Tinder-style unknown review: playable media; ←/→ navigate; ↑ accept; ↓ reject (**Done**) |
-| **M16** | Rejected grid by year/month; delete; **accept** a rejected file (Cosms + Blob → `preserve/`) |
+| **M16** | Rejected grid by year/month; delete; **accept** a rejected file (Cosms + Blob → `preserve/`) (**Done**) |
 | **M17** | Duplicate vs original side by side; ←/→ navigate; ↓ delete duplicate |
 | **M18** | View media (cherish); multi-select tag filters |
 
