@@ -11,6 +11,7 @@ import type {
 } from '../shared/reviewTypes'
 import type { CleanupBucket, CleanupDeleteResult, CleanupListResult } from '../shared/cleanupTypes'
 import type { RestorePreserveResult, RestoreProgress } from '../shared/restoreTypes'
+import type { PersistedDesktopSettings } from '../shared/persistedSettingsTypes'
 
 export type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
 
@@ -50,10 +51,16 @@ export type {
   CleanupDeleteResult,
   RestorePreserveResult,
   RestoreProgress,
+  PersistedDesktopSettings,
 }
 
 const api = {
   appName,
+  getPersistedSettings: (): Promise<PersistedDesktopSettings> =>
+    ipcRenderer.invoke('settings:get'),
+  savePersistedSettings: (
+    patch: Partial<PersistedDesktopSettings>,
+  ): Promise<PersistedDesktopSettings> => ipcRenderer.invoke('settings:save', patch),
   ensureWorkingFolder: (workingRoot: string): Promise<{ ok: true }> =>
     ipcRenderer.invoke('workingFolder:ensure', workingRoot),
   pickWorkingDirectory: (): Promise<string | null> =>

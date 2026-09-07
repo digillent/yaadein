@@ -153,9 +153,9 @@ Solo MVP (M1–M12) delivered cloud-backed scan/review/cleanup/restore. The mile
 
 **Goal:** Ship installable/runnable desktop builds for macOS and Windows.
 
-**Status:** Not started.
+**Status:** Done.
 
-**In scope:** Electron packaging (e.g. electron-builder); documented build commands; artifacts for Mac and Windows; smoke that packaged app launches and reaches sign-in.
+**In scope (delivered):** electron-builder config (`electron-builder.yml`); `pnpm dist` / `dist:mac` / `dist:win`; Mac DMG+zip and Windows zip under `apps/desktop/release/`; public Entra/Cosmos/Blob config **embedded at build time** from `apps/desktop/.env` (no runtime `.env` copy); README executable scripts. Unsigned local builds (`mac.identity: null`).
 
 **Out of scope:** Auto-update CDN; notarization/store submission polish beyond what’s required to run locally; Linux; CI publish pipeline (optional follow-up).
 
@@ -168,6 +168,8 @@ Solo MVP (M1–M12) delivered cloud-backed scan/review/cleanup/restore. The mile
 **Status:** Not started.
 
 **In scope:** Persist working folder (and related settings); on launch, use saved root if valid—do not ask again; Settings path to change working folder; Home with two primary actions — **New scan** and **View media** (View media may stub-route until M18); navigate away from single-page harness layout toward app shell.
+
+**Note:** Working/scan root persistence to userData (`desktop-settings.json`) was delivered early so packaged builds keep the folder across launches; Home shell remains for this milestone.
 
 **Out of scope:** Tinder review (M15); rejected/duplicate library UIs (M16–M17); tag browse (M18); packaging (M13).
 

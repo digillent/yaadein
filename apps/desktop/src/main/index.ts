@@ -10,8 +10,15 @@ import { registerScanIpc } from './ipc/scanIpc'
 import { registerReviewIpc } from './ipc/reviewIpc'
 import { registerCleanupIpc } from './ipc/cleanupIpc'
 import { registerRestoreIpc } from './ipc/restoreIpc'
+import { registerSettingsIpc } from './ipc/settingsIpc'
 
-loadDesktopEnvFile()
+// Prefer product name over scoped package name for userData (`…/Yaadein`).
+app.setName('Yaadein')
+
+// Local dev: load apps/desktop/.env into process.env. Packaged builds embed public config at compile time.
+if (!app.isPackaged) {
+  loadDesktopEnvFile()
+}
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -44,6 +51,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  registerSettingsIpc()
   registerAuthIpc()
   registerCosmosIpc()
   registerBlobIpc()

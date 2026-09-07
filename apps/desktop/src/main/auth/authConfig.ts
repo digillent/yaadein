@@ -1,5 +1,6 @@
 import { COSMOS_DEFAULT_SCOPE } from '../cosmos/cosmosConfig'
 import { STORAGE_DEFAULT_SCOPE } from '../blob/blobConfig'
+import { readPublicEnv } from './readPublicEnv'
 
 export type AuthPublicConfig = {
   clientId: string
@@ -18,14 +19,14 @@ export type AuthPublicConfig = {
 }
 
 /**
- * Non-secret Entra public-client settings from env (never commit real values).
- * Set YAADEIN_ENTRA_CLIENT_ID and YAADEIN_ENTRA_TENANT_ID in apps/desktop/.env
+ * Non-secret Entra public-client settings (never account keys / client secrets).
+ * Dev: apps/desktop/.env. Packaged: values embedded at `pnpm dist` / build time.
  */
 export function getAuthPublicConfig(): AuthPublicConfig {
-  const clientId = process.env.YAADEIN_ENTRA_CLIENT_ID?.trim() ?? ''
-  const tenantId = process.env.YAADEIN_ENTRA_TENANT_ID?.trim() ?? ''
-  const cosmosScope = process.env.YAADEIN_COSMOS_SCOPE?.trim() || COSMOS_DEFAULT_SCOPE
-  const storageScope = process.env.YAADEIN_BLOB_SCOPE?.trim() || STORAGE_DEFAULT_SCOPE
+  const clientId = readPublicEnv('YAADEIN_ENTRA_CLIENT_ID')
+  const tenantId = readPublicEnv('YAADEIN_ENTRA_TENANT_ID')
+  const cosmosScope = readPublicEnv('YAADEIN_COSMOS_SCOPE') || COSMOS_DEFAULT_SCOPE
+  const storageScope = readPublicEnv('YAADEIN_BLOB_SCOPE') || STORAGE_DEFAULT_SCOPE
 
   return {
     clientId,
