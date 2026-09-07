@@ -220,6 +220,47 @@ button.primaryAction:hover:not(:disabled) {
   word-break: break-all;
 }
 
+.dupCompare {
+  margin-top: 1rem;
+  max-width: 64rem;
+}
+
+.dupSideBySide {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.dupPane h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.dupStage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 14rem;
+  background: #f5f5f4;
+  border: 1px solid #d6d3d1;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.dupMedia {
+  max-width: 100%;
+  max-height: 16rem;
+  object-fit: contain;
+}
+
+.dupPath {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+  color: #78716c;
+  word-break: break-all;
+}
+
 .devPanel {
   margin-top: 2.5rem;
   max-width: 40rem;

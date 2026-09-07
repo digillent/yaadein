@@ -11,6 +11,7 @@ import { registerReviewIpc } from './ipc/reviewIpc'
 import { registerCleanupIpc } from './ipc/cleanupIpc'
 import { registerRestoreIpc } from './ipc/restoreIpc'
 import { registerSettingsIpc } from './ipc/settingsIpc'
+import { registerDuplicatesIpc } from './ipc/duplicatesIpc'
 import {
   registerMediaStreamProtocol,
   registerMediaStreamScheme,
@@ -59,6 +60,7 @@ function createWindow(): void {
 app.whenReady().then(() => {
   registerMediaStreamProtocol()
   registerSettingsIpc()
+  registerDuplicatesIpc()
   registerAuthIpc()
   registerCosmosIpc()
   registerBlobIpc()

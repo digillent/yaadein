@@ -201,9 +201,9 @@ Solo MVP (M1–M12) delivered cloud-backed scan/review/cleanup/restore. The mile
 
 **Goal:** Review duplicates with original and duplicate side by side; navigate and delete the duplicate.
 
-**Status:** Not started.
+**Status:** Done.
 
-**In scope:** Resolve “original” via Cosms accepted hash → local `preserve/` (or Blob download if missing locally, using existing restore primitives where practical); side-by-side preview; ← previous dup, → next dup, ↓ delete local duplicate only; never delete `preserve/` original from this flow.
+**In scope (delivered):** Resolve original via Cosms ACCEPTED hash → local `preserve/` (size+hash) or Blob download into `preserve/` when `SYNCED`; side-by-side preview; ←/→ navigate; ↓ delete local duplicate only (cleanup IPC); Home → Duplicate compare.
 
 **Out of scope:** Perceptual near-duplicates; Cosms DUPLICATE docs; rejected grid (M16).
 

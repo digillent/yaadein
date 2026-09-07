@@ -134,7 +134,7 @@ Post-MVP product experience on top of the cloud-backed desktop core. Details and
 | **M14** | Home (scan or view media); persist working folder—do not re-prompt if already set (**Done**) |
 | **M15** | Tinder-style unknown review: playable media; ←/→ navigate; ↑ accept; ↓ reject (**Done**) |
 | **M16** | Rejected grid by year/month; delete; **accept** a rejected file (Cosms + Blob → `preserve/`) (**Done**) |
-| **M17** | Duplicate vs original side by side; ←/→ navigate; ↓ delete duplicate |
+| **M17** | Duplicate vs original side by side; ←/→ navigate; ↓ delete duplicate (**Done**) |
 | **M18** | View media (cherish); multi-select tag filters |
 
 **Product rules that still apply:** accept only after Blob `SYNCED`; Cosms authoritative for accepted/rejected; no Cosms DUPLICATE docs; no account keys; no local SQL decision cache.

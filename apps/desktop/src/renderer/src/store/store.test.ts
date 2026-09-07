@@ -112,5 +112,7 @@ describe('redux store slices', () => {
     expect(store.getState().ui.screen).toBe('review')
     store.dispatch(screenSet('rejected'))
     expect(store.getState().ui.screen).toBe('rejected')
+    store.dispatch(screenSet('duplicates'))
+    expect(store.getState().ui.screen).toBe('duplicates')
   })
 })
