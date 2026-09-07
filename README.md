@@ -37,7 +37,7 @@ flowchart TD
   cosmosReject --> moveRejected
 ```
 
-Implementation follows [ROADMAP.md](ROADMAP.md). **Next: Milestone 9 — Exact duplicate detection.** Set `apps/desktop/.env` from `.env.example` (Entra IDs + Cosms + Blob endpoints).
+Implementation follows [ROADMAP.md](ROADMAP.md). **Next: Milestone 10 — Redux UX.** Set `apps/desktop/.env` from `.env.example` (Entra IDs + Cosms + Blob endpoints).
 
 ## Development
 
