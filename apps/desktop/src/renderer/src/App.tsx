@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getShellTitle } from '@shared/appInfo'
 import type { CleanupBucket, CleanupListResult } from '@shared/cleanupTypes'
+import type { RestorePreserveResult, RestoreProgress } from '@shared/restoreTypes'
 import { useAppDispatch, useAppSelector } from './store/hooks'
 import { sessionUpdated, meProfileUpdated, authClearedExtras } from './store/authSlice'
 import {
@@ -63,6 +64,8 @@ export default function App() {
   const blobHarness = useAppSelector((s) => s.ui.blobHarness)
   const [cleanupBucket, setCleanupBucket] = useState<CleanupBucket>('rejected')
   const [cleanupList, setCleanupList] = useState<CleanupListResult | null>(null)
+  const [restoreProgress, setRestoreProgress] = useState<RestoreProgress | null>(null)
+  const [restoreResult, setRestoreResult] = useState<RestorePreserveResult | null>(null)
 
   useEffect(() => {
     void window.yaadein.getAuthSession().then(
@@ -85,6 +88,12 @@ export default function App() {
       dispatch(scanProgressUpdated(progress))
     })
   }, [dispatch])
+
+  useEffect(() => {
+    return window.yaadein.onRestoreProgress((progress) => {
+      setRestoreProgress(progress)
+    })
+  }, [])
 
   useEffect(() => {
     if (!currentReviewPath) {
@@ -448,6 +457,31 @@ export default function App() {
     })
   }
 
+  async function runRestore(): Promise<void> {
+    if (!session.signedIn) {
+      dispatch(statusSet('Sign in required to restore.'))
+      return
+    }
+    if (!workingRoot) {
+      dispatch(statusSet('Choose a working folder first.'))
+      return
+    }
+    await withBusy(async () => {
+      try {
+        const result = await window.yaadein.runRestore({ workingRoot })
+        setRestoreResult(result)
+        dispatch(
+          statusSet(
+            `Restore done: ${result.restored} restored, ${result.skipped} skipped, ${result.failed} failed`,
+          ),
+        )
+      } catch (error) {
+        setRestoreResult(null)
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+      }
+    })
+  }
+
   return (
     <main className="shell">
       <header className="appHeader">
@@ -652,6 +686,31 @@ export default function App() {
               2,
             )}
           </pre>
+        ) : null}
+      </section>
+
+      <section className="devPanel" aria-label="Restore preserve">
+        <h2>Restore preserve</h2>
+        <p className="hint">
+          Download ACCEPTED+SYNCED blobs with your user token, verify SHA-256, rebuild
+          preserve/YYYY/MM from Cosms organizeDate. Skips files that already match.
+        </p>
+        <div className="row">
+          <button
+            type="button"
+            disabled={busy || !session.signedIn || !workingRoot}
+            onClick={() => void runRestore()}
+          >
+            Restore from Blob
+          </button>
+        </div>
+        <p className="status" role="status">
+          {restoreProgress
+            ? `${restoreProgress.phase}: ${restoreProgress.completed}/${restoreProgress.total} · skipped ${restoreProgress.skipped} · failed ${restoreProgress.failed}`
+            : 'No restore run yet.'}
+        </p>
+        {restoreResult ? (
+          <pre className="inspection">{JSON.stringify(restoreResult, null, 2)}</pre>
         ) : null}
       </section>
 

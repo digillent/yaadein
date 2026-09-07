@@ -23,18 +23,25 @@ class MsalStorageCredential implements TokenCredential {
   }
 }
 
-export type BlobUploadStore = {
+export type BlobMediaStore = {
   uploadFile(args: {
     cloudObjectId: string
     localPath: string
     contentType?: string
   }): Promise<{ cloudObjectId: string; blobUrl: string }>
+  downloadFile(args: {
+    cloudObjectId: string
+    localPath: string
+  }): Promise<{ cloudObjectId: string }>
 }
+
+/** @deprecated Prefer BlobMediaStore — kept for existing call sites. */
+export type BlobUploadStore = BlobMediaStore
 
 export function createBlobUploadStore(
   auth: AuthService,
   config: BlobPublicConfig = getBlobPublicConfig(),
-): BlobUploadStore {
+): BlobMediaStore {
   assertBlobConfig(config)
   const service = new BlobServiceClient(
     config.accountUrl,
@@ -53,6 +60,12 @@ export function createBlobUploadStore(
         blobUrl: blockBlob.url,
       }
     },
+
+    async downloadFile({ cloudObjectId, localPath }) {
+      const blockBlob: BlockBlobClient = container.getBlockBlobClient(cloudObjectId)
+      await blockBlob.downloadToFile(localPath)
+      return { cloudObjectId }
+    },
   }
 }
 
@@ -60,7 +73,7 @@ export function createBlobUploadStoreForUser(
   auth: AuthService,
   config?: BlobPublicConfig,
 ): {
-  store: BlobUploadStore
+  store: BlobMediaStore
   objectIdFor(contentHash: string): string
 } {
   const resolved = config ?? getBlobPublicConfig()

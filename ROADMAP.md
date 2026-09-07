@@ -137,6 +137,10 @@ flowchart TD
 
 **Goal:** Download accepted media with user token; hash verify; rebuild `preserve/YYYY/MM`.
 
+**Status:** Done.
+
+**In scope (delivered):** List Cosms `ACCEPTED`+`SYNCED`; Blob download via user token; SHA-256 + size verify; write `preserve/YYYY/MM`; skip matching locals; progress events; harness + mocked tests.
+
 ---
 
 ## Explicitly postponed (after MVP)

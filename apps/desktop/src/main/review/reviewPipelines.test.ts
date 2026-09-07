@@ -87,6 +87,7 @@ describe('acceptUnknownMedia', () => {
           blobUrl: `https://example.blob.core.windows.net/media/${cloudObjectId}`,
         }
       }),
+      downloadFile: vi.fn(),
     }
     const moveFile = vi.fn(async () => {
       callOrder.push('move')
@@ -129,6 +130,7 @@ describe('acceptUnknownMedia', () => {
       uploadFile: vi.fn(async () => {
         throw new Error('network down')
       }),
+      downloadFile: vi.fn(),
     }
 
     await expect(
