@@ -106,9 +106,9 @@ Organize by `YYYY/MM`: user override → EXIF → oldest usable `mtime` / `birth
 
 Keep `decision`, `cloudStatus`, and local availability separate.
 
-## MVP scope
+## MVP scope (M1–M12 — complete)
 
-### In scope
+### In scope (delivered)
 
 - Electron + React + Redux + TypeScript
 - Working folder + hash/metadata/tags
@@ -116,13 +116,28 @@ Keep `decision`, `cloudStatus`, and local availability separate.
 - Cosms via user token; Blob via user token
 - Scan/classify/review; accept-after-upload; cleanup; restore
 
-### Explicitly out of scope (MVP)
+### Explicitly out of scope (MVP plumbing)
 
 - Azure Functions as required gateway
 - Local SQL decision cache; offline decision queues
 - Encrypted account-key files in the app
 - Public multi-tenant CIAM; mobile; multi-user sharing
 - Perceptual near-duplicates; auto-delete on scan
+
+## Product UX phase (M13–M18)
+
+Post-MVP product experience on top of the cloud-backed desktop core. Details and ordering live in [ROADMAP.md](ROADMAP.md).
+
+| Milestone | Intent |
+|-----------|--------|
+| **M13** | Mac and Windows executables / installers |
+| **M14** | Home (scan or view media); persist working folder—do not re-prompt if already set |
+| **M15** | Tinder-style unknown review: playable media; ←/→ navigate; ↑ accept; ↓ reject |
+| **M16** | Rejected grid by year/month; delete; **accept** a rejected file (Cosms + Blob → `preserve/`) |
+| **M17** | Duplicate vs original side by side; ←/→ navigate; ↓ delete duplicate |
+| **M18** | View media (cherish); multi-select tag filters |
+
+**Product rules that still apply:** accept only after Blob `SYNCED`; Cosms authoritative for accepted/rejected; no Cosms DUPLICATE docs; no account keys; no local SQL decision cache.
 
 ## Cloud metadata
 

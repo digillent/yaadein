@@ -143,13 +143,92 @@ flowchart TD
 
 ---
 
-## Explicitly postponed (after MVP)
+## Product UX phase (after solo MVP plumbing)
+
+Solo MVP (M1–M12) delivered cloud-backed scan/review/cleanup/restore. The milestones below turn the harness into a product UI. Implement **only the current** milestone.
+
+---
+
+## Milestone 13 — Mac and Windows executables
+
+**Goal:** Ship installable/runnable desktop builds for macOS and Windows.
+
+**Status:** Not started.
+
+**In scope:** Electron packaging (e.g. electron-builder); documented build commands; artifacts for Mac and Windows; smoke that packaged app launches and reaches sign-in.
+
+**Out of scope:** Auto-update CDN; notarization/store submission polish beyond what’s required to run locally; Linux; CI publish pipeline (optional follow-up).
+
+---
+
+## Milestone 14 — Home shell and working folder persistence
+
+**Goal:** Product home: start a scan or open View media; configure working folder once and change it later without re-prompting every launch.
+
+**Status:** Not started.
+
+**In scope:** Persist working folder (and related settings); on launch, use saved root if valid—do not ask again; Settings path to change working folder; Home with two primary actions — **New scan** and **View media** (View media may stub-route until M18); navigate away from single-page harness layout toward app shell.
+
+**Out of scope:** Tinder review (M15); rejected/duplicate library UIs (M16–M17); tag browse (M18); packaging (M13).
+
+---
+
+## Milestone 15 — Tinder-style unknown review
+
+**Goal:** Review unknowns with a card-style UX: media front-and-center, keyboard arrows for actions.
+
+**Status:** Not started.
+
+**In scope:** Show current unknown as image or **playable video**; ← previous, → next, ↑ accept, ↓ reject; reuse existing accept (Cosms + Blob `SYNCED` → `preserve/`) and reject (Cosms lean → `rejected/`) pipelines; focus/keyboard affordances clear in UI.
+
+**Out of scope:** Rejected grid; duplicate compare; tag editing UI beyond what’s already shown; packaging.
+
+---
+
+## Milestone 16 — Rejected library (grid, filter, delete, accept)
+
+**Goal:** Browse `rejected/` as a grid by year/month; delete confirmed; accept a rejected file back into the keep path.
+
+**Status:** Not started.
+
+**In scope:** Grid of rejected media; filter by year/month (`YYYY/MM`); multi-select or item delete (local only; retain Cosms unless accepting); **Accept** on a rejected item → Cosms full ACCEPTED + Blob `SYNCED` → move to `preserve/` (same accept gate as review); remove from rejected UX after success.
+
+**Out of scope:** Duplicate side-by-side (M17); cherish/tag browse (M18); auto-delete during scan.
+
+---
+
+## Milestone 17 — Duplicate compare review
+
+**Goal:** Review duplicates with original and duplicate side by side; navigate and delete the duplicate.
+
+**Status:** Not started.
+
+**In scope:** Resolve “original” via Cosms accepted hash → local `preserve/` (or Blob download if missing locally, using existing restore primitives where practical); side-by-side preview; ← previous dup, → next dup, ↓ delete local duplicate only; never delete `preserve/` original from this flow.
+
+**Out of scope:** Perceptual near-duplicates; Cosms DUPLICATE docs; rejected grid (M16).
+
+---
+
+## Milestone 18 — View media (cherish) with multi-tag filters
+
+**Goal:** From Home, browse kept media and filter by tags (multi-select).
+
+**Status:** Not started.
+
+**In scope:** View media screen over accepted/preserve keepers; filter by tags (`people` / `places` / `events` as already modeled); **multiple tags** selected together (AND or clear intersection semantics—document in UI); Cosms (or local+Cosms) as source for tag metadata—not Redux as decision truth; basic preview/playback consistent with review media handling.
+
+**Out of scope:** Perceptual search; social sharing; full DAM/album product; Functions gateway.
+
+---
+
+## Explicitly postponed (later)
 
 - Azure Functions / API broker (reintroduce if multi-user or untrusted clients)
 - Local SQL decision cache / offline decision catalog
 - Encrypted Cosms/storage **account keys** in the desktop app
 - Perceptual near-duplicates; mobile; multi-user sharing
 - Automatic permanent deletion during scan/review
+- Auto-update / store notarization beyond M13 runnable builds
 
 ## Milestone dependency overview
 
@@ -167,6 +246,13 @@ flowchart LR
   M9 --> M10
   M10 --> M11[M11 Local cleanup]
   M11 --> M12[M12 Restore]
+  M12 --> M13[M13 Mac/Win builds]
+  M12 --> M14[M14 Home + working folder]
+  M14 --> M15[M15 Tinder unknowns]
+  M14 --> M16[M16 Rejected library]
+  M14 --> M17[M17 Duplicate compare]
+  M14 --> M18[M18 View media + tags]
+  M13 -.-> M14
 ```
 
 ## Superseded approaches
