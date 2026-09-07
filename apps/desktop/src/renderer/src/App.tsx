@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { getShellTitle } from '@shared/appInfo'
+import type { CleanupBucket, CleanupListResult } from '@shared/cleanupTypes'
 import { useAppDispatch, useAppSelector } from './store/hooks'
 import { sessionUpdated, meProfileUpdated, authClearedExtras } from './store/authSlice'
 import {
@@ -60,6 +61,8 @@ export default function App() {
   const inspection = useAppSelector((s) => s.ui.inspection)
   const cosmosHarness = useAppSelector((s) => s.ui.cosmosHarness)
   const blobHarness = useAppSelector((s) => s.ui.blobHarness)
+  const [cleanupBucket, setCleanupBucket] = useState<CleanupBucket>('rejected')
+  const [cleanupList, setCleanupList] = useState<CleanupListResult | null>(null)
 
   useEffect(() => {
     void window.yaadein.getAuthSession().then(
@@ -380,6 +383,71 @@ export default function App() {
     })
   }
 
+  async function refreshCleanupList(): Promise<void> {
+    if (!workingRoot) {
+      dispatch(statusSet('Choose a working folder first.'))
+      return
+    }
+    await withBusy(async () => {
+      try {
+        const listed = await window.yaadein.listCleanup({
+          workingRoot,
+          bucket: cleanupBucket,
+        })
+        setCleanupList(listed)
+        dispatch(
+          statusSet(
+            `Cleanup list ${cleanupBucket}/: ${listed.files.length} file(s), ${listed.totalBytes} bytes`,
+          ),
+        )
+      } catch (error) {
+        setCleanupList(null)
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+      }
+    })
+  }
+
+  async function deleteCleanupBucket(): Promise<void> {
+    if (!workingRoot) {
+      dispatch(statusSet('Choose a working folder first.'))
+      return
+    }
+    await withBusy(async () => {
+      try {
+        const listed =
+          cleanupList && cleanupList.bucket === cleanupBucket
+            ? cleanupList
+            : await window.yaadein.listCleanup({ workingRoot, bucket: cleanupBucket })
+        setCleanupList(listed)
+        if (listed.files.length === 0) {
+          dispatch(statusSet(`No files under ${cleanupBucket}/ to delete.`))
+          return
+        }
+        const result = await window.yaadein.deleteCleanup({
+          workingRoot,
+          bucket: cleanupBucket,
+          paths: listed.files.map((f) => f.absolutePath),
+        })
+        if (result.cancelled) {
+          dispatch(statusSet('Cleanup cancelled — Cosms unchanged.'))
+          return
+        }
+        const refreshed = await window.yaadein.listCleanup({
+          workingRoot,
+          bucket: cleanupBucket,
+        })
+        setCleanupList(refreshed)
+        dispatch(
+          statusSet(
+            `Deleted ${result.deleted.length} local file(s) from ${cleanupBucket}/ (${result.failed.length} failed). Cosms decisions retained.`,
+          ),
+        )
+      } catch (error) {
+        dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+      }
+    })
+  }
+
   return (
     <main className="shell">
       <header className="appHeader">
@@ -532,6 +600,58 @@ export default function App() {
           />
         ) : currentReviewPath ? (
           <p className="hint">No image preview (video or large file).</p>
+        ) : null}
+      </section>
+
+      <section className="devPanel" aria-label="Local cleanup">
+        <h2>Local cleanup</h2>
+        <p className="hint">
+          Permanently delete local files under rejected/ or duplicate/ only. Requires confirmation.
+          Never touches preserve/. Cosmos accept/reject decisions are kept.
+        </p>
+        <div className="row">
+          <label className="bucket">
+            Bucket
+            <select
+              value={cleanupBucket}
+              disabled={busy}
+              onChange={(event) => {
+                setCleanupBucket(event.target.value as CleanupBucket)
+                setCleanupList(null)
+              }}
+            >
+              <option value="rejected">rejected</option>
+              <option value="duplicate">duplicate</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            disabled={busy || !workingRoot}
+            onClick={() => void refreshCleanupList()}
+          >
+            List files
+          </button>
+          <button
+            type="button"
+            disabled={busy || !workingRoot || !cleanupList || cleanupList.files.length === 0}
+            onClick={() => void deleteCleanupBucket()}
+          >
+            Delete all listed…
+          </button>
+        </div>
+        <p className="status" role="status">
+          {cleanupList
+            ? `${cleanupList.bucket}/: ${cleanupList.files.length} file(s)`
+            : 'List a cleanup bucket to preview files.'}
+        </p>
+        {cleanupList ? (
+          <pre className="inspection">
+            {JSON.stringify(
+              cleanupList.files.map((f) => ({ path: f.relativePath, bytes: f.sizeBytes })),
+              null,
+              2,
+            )}
+          </pre>
         ) : null}
       </section>
 
