@@ -1,5 +1,6 @@
 import { readdir, rm, stat, unlink } from 'node:fs/promises'
 import { relative, resolve, sep } from 'node:path'
+import { isMediaPath } from '../media/mediaType'
 import { bucketDirectory } from './paths'
 import { yearMonthFromCleanupRelativePath } from './yearMonthPath'
 import type { CleanupBucket, CleanupFileEntry, CleanupListResult } from '../../shared/cleanupTypes'
@@ -43,6 +44,9 @@ export async function listCleanupFiles(
     if (!isPathInsideRoot(bucketRoot, absolutePath)) {
       return
     }
+    if (!isMediaPath(absolutePath)) {
+      return
+    }
     const fileStat = await stat(absolutePath)
     if (!fileStat.isFile()) {
       return
@@ -84,6 +88,9 @@ export async function deleteCleanupFiles(
     try {
       if (!isPathInsideRoot(bucketRoot, absolutePath)) {
         throw new Error('Refusing to delete path outside cleanup bucket.')
+      }
+      if (!isMediaPath(absolutePath)) {
+        throw new Error('Cleanup only allows previewable media files.')
       }
       if (isPathInsideRoot(bucketDirectory(root, 'preserve'), absolutePath)) {
         throw new Error('Refusing to delete under preserve/.')

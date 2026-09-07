@@ -88,6 +88,7 @@ describe('acceptUnknownMedia', () => {
         }
       }),
       downloadFile: vi.fn(),
+      deleteFile: vi.fn(),
     }
     const moveFile = vi.fn(async () => {
       callOrder.push('move')
@@ -131,6 +132,7 @@ describe('acceptUnknownMedia', () => {
         throw new Error('network down')
       }),
       downloadFile: vi.fn(),
+      deleteFile: vi.fn(),
     }
 
     await expect(

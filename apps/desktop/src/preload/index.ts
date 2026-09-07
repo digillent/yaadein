@@ -13,6 +13,7 @@ import type { CleanupBucket, CleanupDeleteResult, CleanupListResult } from '../s
 import type { RestorePreserveResult, RestoreProgress } from '../shared/restoreTypes'
 import type { PersistedDesktopSettings } from '../shared/persistedSettingsTypes'
 import type { DuplicateComparePair } from '../shared/duplicateTypes'
+import type { CherishListResult } from '../shared/cherishTypes'
 
 export type WorkingBucket = 'preserve' | 'duplicate' | 'rejected'
 
@@ -54,6 +55,7 @@ export type {
   RestoreProgress,
   PersistedDesktopSettings,
   DuplicateComparePair,
+  CherishListResult,
 }
 
 const api = {
@@ -118,6 +120,13 @@ const api = {
     workingRoot: string
     duplicatePath: string
   }): Promise<DuplicateComparePair> => ipcRenderer.invoke('duplicates:resolve', payload),
+  listCherishMedia: (payload: { workingRoot: string }): Promise<CherishListResult> =>
+    ipcRenderer.invoke('cherish:list', payload),
+  rejectCherishMedia: (payload: {
+    workingRoot: string
+    sourcePath: string
+    captureDateIso?: string
+  }): Promise<ReviewRejectResult> => ipcRenderer.invoke('cherish:reject', payload),
   listCleanup: (payload: {
     workingRoot: string
     bucket: CleanupBucket

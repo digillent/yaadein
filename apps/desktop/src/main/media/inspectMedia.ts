@@ -1,6 +1,6 @@
 import { basename } from 'node:path'
 import { hashFileContent } from './hashFile'
-import { mediaTypeFromPath } from './mediaType'
+import { isMediaPath, mediaTypeFromPath } from './mediaType'
 import { extractExifFields } from './extractExif'
 import { resolveOrganizeDate } from './resolveOrganizeDate'
 import type { MediaInspection } from './types'
@@ -15,6 +15,10 @@ export async function inspectMediaFile(
   sourcePath: string,
   options: InspectMediaOptions = {},
 ): Promise<MediaInspection> {
+  if (!isMediaPath(sourcePath)) {
+    throw new Error('Only previewable media files can be inspected or reviewed.')
+  }
+
   const [{ contentHash, fileSize }, exif, organize] = await Promise.all([
     hashFileContent(sourcePath),
     extractExifFields(sourcePath),

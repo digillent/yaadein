@@ -24,6 +24,16 @@ describe('walkMediaFiles', () => {
     const found = await walkMediaFiles([root])
     expect(found.map((p) => p.slice(root.length + 1)).sort()).toEqual(['a.jpg', 'nested/b.png'])
   })
+
+  it('skips .DS_Store and other non-media', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'yaadein-walk-ds-'))
+    writeFileSync(join(root, 'a.jpg'), 'a')
+    writeFileSync(join(root, '.DS_Store'), 'mac')
+    writeFileSync(join(root, 'Thumbs.db'), 'win')
+    const found = await walkMediaFiles([root])
+    expect(found).toHaveLength(1)
+    expect(found[0]?.endsWith('a.jpg')).toBe(true)
+  })
 })
 
 describe('scanAndClassify', () => {

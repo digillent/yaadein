@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import type { MediaInspection } from '../../shared/mediaTypes'
 import type { ReviewRejectResult } from '../../shared/reviewTypes'
 import type { DecisionRepository } from '../cosmos/decisionRepository'
+import { isMediaPath } from '../media/mediaType'
 import { moveMediaIntoWorkingFolder } from '../workingFolder'
 
 /**
@@ -18,6 +19,9 @@ export async function rejectUnknownMedia(args: {
 
   if (!existsSync(inspection.sourcePath)) {
     throw new Error(`Source file not found: ${inspection.sourcePath}`)
+  }
+  if (!isMediaPath(inspection.sourcePath)) {
+    throw new Error('Only previewable media files can be rejected.')
   }
 
   const document = await decisions.upsertRejected({

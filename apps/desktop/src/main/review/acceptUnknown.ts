@@ -4,6 +4,7 @@ import type { ReviewAcceptResult } from '../../shared/reviewTypes'
 import type { DecisionRepository } from '../cosmos/decisionRepository'
 import { acceptAndUploadMedia } from '../blob/acceptUploadPipeline'
 import type { BlobUploadStore } from '../blob/blobUploader'
+import { isMediaPath } from '../media/mediaType'
 import { moveMediaIntoWorkingFolder } from '../workingFolder'
 
 /**
@@ -23,6 +24,9 @@ export async function acceptUnknownMedia(args: {
 
   if (!existsSync(inspection.sourcePath)) {
     throw new Error(`Source file not found: ${inspection.sourcePath}`)
+  }
+  if (!isMediaPath(inspection.sourcePath)) {
+    throw new Error('Only previewable media files can be accepted.')
   }
 
   // Upload first — never move into preserve/ before SYNCED.

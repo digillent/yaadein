@@ -12,6 +12,7 @@ import { registerCleanupIpc } from './ipc/cleanupIpc'
 import { registerRestoreIpc } from './ipc/restoreIpc'
 import { registerSettingsIpc } from './ipc/settingsIpc'
 import { registerDuplicatesIpc } from './ipc/duplicatesIpc'
+import { registerCherishIpc } from './ipc/cherishIpc'
 import {
   registerMediaStreamProtocol,
   registerMediaStreamScheme,
@@ -61,6 +62,7 @@ app.whenReady().then(() => {
   registerMediaStreamProtocol()
   registerSettingsIpc()
   registerDuplicatesIpc()
+  registerCherishIpc()
   registerAuthIpc()
   registerCosmosIpc()
   registerBlobIpc()

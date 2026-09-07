@@ -86,6 +86,7 @@ describe('acceptAndUploadMedia', () => {
         blobUrl: `https://example.blob.core.windows.net/media/${cloudObjectId}`,
       })),
       downloadFile: vi.fn(),
+      deleteFile: vi.fn(),
     }
 
     const result = await acceptAndUploadMedia({
@@ -115,6 +116,7 @@ describe('acceptAndUploadMedia', () => {
         throw new Error('network down')
       }),
       downloadFile: vi.fn(),
+      deleteFile: vi.fn(),
     }
 
     await expect(
