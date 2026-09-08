@@ -102,4 +102,30 @@ describe('workingFolder ensure + move', () => {
     expect(result.yearMonth).toBe('2023/04')
     expect(result.destinationPath).toBe(join(root, 'preserve', '2023', '04', 'dated.jpg'))
   })
+
+  it('removes junk-only nested folders under the scan root after a move, keeping the scan root', async () => {
+    const root = await makeTemp('yaadein-work-')
+    const scanRoot = await makeTemp('yaadein-scan-')
+    const nested = join(scanRoot, 'album', 'day')
+    await mkdir(nested, { recursive: true })
+    const sourcePath = join(nested, 'photo.jpg')
+    await writeFile(sourcePath, 'payload')
+    await writeFile(join(nested, '.DS_Store'), 'mac')
+
+    await moveMediaIntoWorkingFolder({
+      sourcePath,
+      workingRoot: root,
+      bucket: 'rejected',
+      captureDate: new Date('2026-09-05T15:00:00.000Z'),
+    })
+
+    // safeMove only prunes inside working buckets; scan tree is pruned after scan.
+    expect(await exists(scanRoot)).toBe(true)
+    expect(await exists(join(scanRoot, 'album', 'day'))).toBe(true)
+
+    const { pruneEmptyDirTree } = await import('./pruneEmptyDirs')
+    await pruneEmptyDirTree(scanRoot, { removeRoot: false })
+    expect(await exists(scanRoot)).toBe(true)
+    expect(await exists(join(scanRoot, 'album'))).toBe(false)
+  })
 })

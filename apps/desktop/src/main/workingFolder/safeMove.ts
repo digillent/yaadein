@@ -1,10 +1,11 @@
 import { copyFile, mkdir, rename, stat, unlink, access } from 'node:fs/promises'
 import { constants } from 'node:fs'
-import { basename } from 'node:path'
+import { basename, dirname } from 'node:path'
 import type { MoveMediaInput, MoveMediaResult } from './types'
-import { destinationDirectory, destinationFilePath, formatYearMonth } from './paths'
+import { bucketDirectory, destinationDirectory, destinationFilePath, formatYearMonth } from './paths'
 import { ensureWorkingFolder } from './ensureTree'
 import { resolveOrganizeDate } from '../media/resolveOrganizeDate'
+import { pruneEmptyAncestors } from './pruneEmptyDirs'
 
 type ResolvedMoveInput = MoveMediaInput & { captureDate: Date }
 
@@ -96,6 +97,12 @@ export async function moveMediaIntoWorkingFolder(
   if (await pathExists(input.sourcePath)) {
     throw new Error(`Move failed; source still present: ${input.sourcePath}`)
   }
+
+  await pruneEmptyAncestors(dirname(input.sourcePath), [
+    bucketDirectory(input.workingRoot, 'preserve'),
+    bucketDirectory(input.workingRoot, 'duplicate'),
+    bucketDirectory(input.workingRoot, 'rejected'),
+  ])
 
   return {
     destinationPath,

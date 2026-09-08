@@ -22,6 +22,7 @@ export async function acceptRejectedMedia(args: {
   decisions: DecisionRepository
   blobs: BlobUploadStore
   moveFile?: typeof moveMediaIntoWorkingFolder
+  onProgress?: Parameters<typeof acceptUnknownMedia>[0]['onProgress']
 }): Promise<ReviewAcceptResult> {
   const { inspection, workingRoot } = args
   if (!existsSync(inspection.sourcePath)) {

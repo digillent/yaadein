@@ -6,6 +6,7 @@ import type { AcceptUploadHarnessResult, CosmosHarnessResult } from '../shared/d
 import type { ScanClassifyRequest, ScanClassifyResult, ScanProgress } from '../shared/scanTypes'
 import type {
   MediaPreview,
+  ReviewAcceptProgress,
   ReviewAcceptResult,
   ReviewRejectResult,
 } from '../shared/reviewTypes'
@@ -46,6 +47,7 @@ export type {
   ScanClassifyResult,
   ScanProgress,
   MediaPreview,
+  ReviewAcceptProgress,
   ReviewAcceptResult,
   ReviewRejectResult,
   CleanupBucket,
@@ -104,6 +106,15 @@ const api = {
     workingRoot: string
     captureDateIso?: string
   }): Promise<ReviewAcceptResult> => ipcRenderer.invoke('review:accept', payload),
+  onReviewAcceptProgress: (listener: (progress: ReviewAcceptProgress) => void): (() => void) => {
+    const handler = (_event: unknown, progress: ReviewAcceptProgress): void => {
+      listener(progress)
+    }
+    ipcRenderer.on('review:accept-progress', handler)
+    return () => {
+      ipcRenderer.removeListener('review:accept-progress', handler)
+    }
+  },
   reviewReject: (payload: {
     sourcePath: string
     workingRoot: string

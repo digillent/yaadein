@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CleanupFileEntry, CleanupListResult } from '@shared/cleanupTypes'
-import type { MediaPreview } from '@shared/reviewTypes'
+import { LazyMediaThumb } from './LazyMediaThumb'
+
+const GRID_PAGE_SIZE = 120
 
 type Props = {
   workingRoot: string
@@ -25,7 +27,7 @@ export function RejectedLibraryPanel({
   const [list, setList] = useState<CleanupListResult | null>(null)
   const [yearMonthFilter, setYearMonthFilter] = useState<string>('all')
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
-  const [previews, setPreviews] = useState<Record<string, MediaPreview | null>>({})
+  const [visibleCount, setVisibleCount] = useState(GRID_PAGE_SIZE)
 
   const yearMonths = useMemo(() => {
     const values = new Set<string>()
@@ -45,6 +47,15 @@ export function RejectedLibraryPanel({
     return files.filter((f) => f.yearMonth === yearMonthFilter)
   }, [list, yearMonthFilter])
 
+  useEffect(() => {
+    setVisibleCount(GRID_PAGE_SIZE)
+  }, [yearMonthFilter, list])
+
+  const gridFiles = useMemo(
+    () => visibleFiles.slice(0, visibleCount),
+    [visibleFiles, visibleCount],
+  )
+
   async function refreshList(): Promise<void> {
     await onBusy(async () => {
       try {
@@ -54,6 +65,7 @@ export function RejectedLibraryPanel({
         })
         setList(next)
         setSelected(new Set())
+        setVisibleCount(GRID_PAGE_SIZE)
         onStatus(`Rejected library: ${next.files.length} file(s)`)
       } catch (error) {
         setList(null)
@@ -67,32 +79,6 @@ export function RejectedLibraryPanel({
     // intentionally load once when panel mounts / workingRoot changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workingRoot])
-
-  useEffect(() => {
-    let cancelled = false
-    const load = async (): Promise<void> => {
-      const next: Record<string, MediaPreview | null> = { ...previews }
-      for (const file of visibleFiles.slice(0, 48)) {
-        if (next[file.absolutePath] !== undefined) {
-          continue
-        }
-        try {
-          next[file.absolutePath] = await window.yaadein.previewMedia(file.absolutePath)
-        } catch {
-          next[file.absolutePath] = null
-        }
-        if (cancelled) {
-          return
-        }
-        setPreviews({ ...next })
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleFiles])
 
   function toggleSelected(path: string): void {
     setSelected((prev) => {
@@ -206,49 +192,54 @@ export function RejectedLibraryPanel({
       </div>
 
       <p className="status" role="status">
-        Showing {visibleFiles.length} of {list?.files.length ?? 0} · selected {selected.size}
+        Showing {gridFiles.length} of {visibleFiles.length} · selected {selected.size}
       </p>
 
       <div className="rejectedGrid">
-        {visibleFiles.map((file) => {
-          const preview = previews[file.absolutePath]
-          const src = preview?.streamUrl ?? preview?.dataUrl ?? null
-          return (
-            <article key={file.absolutePath} className="rejectedCard">
-              <label className="rejectedSelect">
-                <input
-                  type="checkbox"
-                  checked={selected.has(file.absolutePath)}
-                  disabled={busy}
-                  onChange={() => toggleSelected(file.absolutePath)}
-                />
-                <span>{file.yearMonth ?? '—'}</span>
-              </label>
-              <div className="rejectedThumb">
-                {preview?.kind === 'video' && src ? (
-                  <video src={src} muted playsInline preload="metadata" />
-                ) : preview?.kind === 'image' && src ? (
-                  <img src={src} alt={file.relativePath} />
-                ) : (
-                  <span className="hint">No preview</span>
-                )}
-              </div>
-              <p className="rejectedName" title={file.absolutePath}>
-                {file.relativePath}
-              </p>
-              <div className="row">
-                <button
-                  type="button"
-                  disabled={busy || !signedIn}
-                  onClick={() => void acceptFile(file)}
-                >
-                  Accept
-                </button>
-              </div>
-            </article>
-          )
-        })}
+        {gridFiles.map((file) => (
+          <article key={file.absolutePath} className="rejectedCard">
+            <label className="rejectedSelect">
+              <input
+                type="checkbox"
+                checked={selected.has(file.absolutePath)}
+                disabled={busy}
+                onChange={() => toggleSelected(file.absolutePath)}
+              />
+              <span>{file.yearMonth ?? '—'}</span>
+            </label>
+            <LazyMediaThumb
+              absolutePath={file.absolutePath}
+              alt={file.relativePath}
+              className="rejectedThumb"
+            />
+            <p className="rejectedName" title={file.absolutePath}>
+              {file.relativePath}
+            </p>
+            <div className="row">
+              <button
+                type="button"
+                disabled={busy || !signedIn}
+                onClick={() => void acceptFile(file)}
+              >
+                Accept
+              </button>
+            </div>
+          </article>
+        ))}
       </div>
+
+      {visibleFiles.length > gridFiles.length ? (
+        <div className="row">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setVisibleCount((n) => n + GRID_PAGE_SIZE)}
+          >
+            Show more ({visibleFiles.length - gridFiles.length} remaining)
+          </button>
+        </div>
+      ) : null}
+
       {visibleFiles.length === 0 ? <p className="hint">No rejected files in this filter.</p> : null}
     </section>
   )

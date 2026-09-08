@@ -13,7 +13,7 @@ describe('buildMediaPreview', () => {
     }
   })
 
-  it('marks images with stream url and kind image', async () => {
+  it('marks images with stream url and kind image without base64', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'yaadein-preview-'))
     dirs.push(dir)
     const file = join(dir, 'a.jpg')
@@ -22,6 +22,7 @@ describe('buildMediaPreview', () => {
     const preview = await buildMediaPreview(file)
     expect(preview.kind).toBe('image')
     expect(preview.streamUrl).toContain('yaadein-media:')
+    expect(preview.dataUrl).toBeNull()
     expect(new URL(preview.streamUrl!).searchParams.get('path')).toBe(file)
   })
 

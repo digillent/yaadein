@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getShellTitle } from '@shared/appInfo'
 import type { CleanupBucket, CleanupListResult } from '@shared/cleanupTypes'
 import type { RestorePreserveResult, RestoreProgress } from '@shared/restoreTypes'
+import type { ReviewAcceptProgress } from '@shared/reviewTypes'
 import { useAppDispatch, useAppSelector } from './store/hooks'
 import { sessionUpdated, meProfileUpdated, authClearedExtras } from './store/authSlice'
 import {
@@ -14,7 +15,6 @@ import {
   reviewQueueLoaded,
   reviewAdvanced,
   reviewIndexSet,
-  reviewPreviewUpdated,
   selectCurrentReviewPath,
 } from './store/reviewSlice'
 import {
@@ -47,6 +47,32 @@ function eventDateInputToIso(dateInput: string): string {
   return `${dateInput}T12:00:00.000Z`
 }
 
+function formatByteCount(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`
+  }
+  if (bytes < 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
+function acceptProgressLabel(progress: ReviewAcceptProgress): string {
+  if (progress.phase === 'preparing') {
+    return 'Preparing accept (Cosms)…'
+  }
+  if (progress.phase === 'moving') {
+    return 'Upload complete — moving to preserve/…'
+  }
+  if (progress.percent !== null) {
+    return `Uploading to cloud… ${formatByteCount(progress.bytesUploaded)} / ${formatByteCount(progress.bytesTotal)} (${progress.percent}%)`
+  }
+  return `Uploading to cloud… ${formatByteCount(progress.bytesUploaded)}`
+}
+
 export default function App() {
   const title =
     typeof window !== 'undefined' && window.yaadein?.appName
@@ -63,7 +89,6 @@ export default function App() {
   const scanResult = useAppSelector((s) => s.scan.lastResult)
   const reviewQueue = useAppSelector((s) => s.review.queue)
   const reviewIndex = useAppSelector((s) => s.review.index)
-  const preview = useAppSelector((s) => s.review.preview)
   const currentReviewPath = useAppSelector(selectCurrentReviewPath)
   const busy = useAppSelector((s) => s.ui.busy)
   const status = useAppSelector((s) => s.ui.status)
@@ -76,6 +101,7 @@ export default function App() {
   const [cleanupList, setCleanupList] = useState<CleanupListResult | null>(null)
   const [restoreProgress, setRestoreProgress] = useState<RestoreProgress | null>(null)
   const [restoreResult, setRestoreResult] = useState<RestorePreserveResult | null>(null)
+  const [acceptProgress, setAcceptProgress] = useState<ReviewAcceptProgress | null>(null)
 
   useEffect(() => {
     void window.yaadein.getAuthSession().then(
@@ -139,28 +165,21 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!currentReviewPath) {
-      dispatch(reviewPreviewUpdated(null))
-      return
-    }
-    let cancelled = false
-    void window.yaadein.previewMedia(currentReviewPath).then(
-      (next) => {
-        if (!cancelled) {
-          dispatch(reviewPreviewUpdated(next))
+    return window.yaadein.onReviewAcceptProgress((progress) => {
+      setAcceptProgress((prev) => {
+        if (
+          prev &&
+          prev.phase === progress.phase &&
+          prev.percent === progress.percent &&
+          prev.bytesUploaded === progress.bytesUploaded
+        ) {
+          return prev
         }
-      },
-      (error: unknown) => {
-        if (!cancelled) {
-          dispatch(reviewPreviewUpdated(null))
-          dispatch(statusSet(error instanceof Error ? error.message : String(error)))
-        }
-      },
-    )
-    return () => {
-      cancelled = true
-    }
-  }, [currentReviewPath, dispatch])
+        return progress
+      })
+      dispatch(statusSet(acceptProgressLabel(progress)))
+    })
+  }, [dispatch])
 
   async function withBusy(run: () => Promise<void>): Promise<void> {
     dispatch(busySet(true))
@@ -419,6 +438,14 @@ export default function App() {
       return
     }
     await withBusy(async () => {
+      setAcceptProgress({
+        phase: 'preparing',
+        sourcePath: currentReviewPath,
+        bytesUploaded: 0,
+        bytesTotal: 0,
+        percent: null,
+      })
+      dispatch(statusSet('Accepting — uploading to cloud. Other actions paused…'))
       try {
         const result = await window.yaadein.reviewAccept({
           sourcePath: currentReviewPath,
@@ -431,6 +458,8 @@ export default function App() {
         dispatch(reviewAdvanced())
       } catch (error) {
         dispatch(statusSet(error instanceof Error ? error.message : String(error)))
+      } finally {
+        setAcceptProgress(null)
       }
     })
   }
@@ -595,7 +624,9 @@ export default function App() {
     return () => {
       window.removeEventListener('keydown', onKeyDown)
     }
-  })
+    // accept/reject close over current path; rebind when reviewIndex / auth / busy change
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid rebinding every render
+  }, [screen, busy, reviewIndex, session.signedIn, dispatch, currentReviewPath, workingRoot, eventDateOverride])
 
   if (!settingsHydrated) {
     return (
@@ -610,7 +641,11 @@ export default function App() {
 
   const statusBar = (
     <p className="statusBar" role="status">
-      {busy ? 'Working… · ' : ''}
+      {busy
+        ? acceptProgress
+          ? `${acceptProgressLabel(acceptProgress)} · `
+          : 'Working… · '
+        : ''}
       {session.signedIn
         ? `Signed in: ${session.username ?? session.accountName ?? 'account'}`
         : 'Not signed in'}
@@ -718,6 +753,13 @@ export default function App() {
           <button type="button" disabled={busy} onClick={() => dispatch(screenSet('tools'))}>
             Tools
           </button>
+          <button
+            type="button"
+            disabled={busy || !session.signedIn || !workingRoot}
+            onClick={() => void runRestore()}
+          >
+            Restore from cloud
+          </button>
         </div>
       </main>
     )
@@ -741,6 +783,7 @@ export default function App() {
           onBusy={withBusy}
           onSignIn={signIn}
           onBackHome={() => dispatch(screenSet('home'))}
+          onRestoreFromCloud={runRestore}
         />
       </main>
     )
@@ -813,11 +856,42 @@ export default function App() {
         <header className="appHeader">
           <div>
             <h1>{title}</h1>
-            <p className="tagline">Developer harness helpers.</p>
+            <p className="tagline">Cloud sync, harness, and local helpers.</p>
           </div>
           {statusBar}
         </header>
         {navHome}
+        <section className="devPanel" aria-label="Sync from cloud" id="restore-from-cloud">
+          <h2>Sync from cloud</h2>
+          <p className="hint">
+            Download Cosms <strong>ACCEPTED+SYNCED</strong> media from Blob into local{' '}
+            <code>preserve/YYYY/MM</code>. Verifies SHA-256; skips files that already match. Sign in
+            required.
+          </p>
+          <div className="row">
+            <button
+              type="button"
+              className="primaryAction"
+              disabled={busy || !session.signedIn || !workingRoot}
+              onClick={() => void runRestore()}
+            >
+              Restore from Blob
+            </button>
+            {!session.signedIn ? (
+              <button type="button" disabled={busy} onClick={() => void signIn()}>
+                Sign in
+              </button>
+            ) : null}
+          </div>
+          <p className="status" role="status">
+            {restoreProgress
+              ? `${restoreProgress.phase}: ${restoreProgress.completed}/${restoreProgress.total} · skipped ${restoreProgress.skipped} · failed ${restoreProgress.failed}`
+              : 'No restore run yet.'}
+          </p>
+          {restoreResult ? (
+            <pre className="inspection">{JSON.stringify(restoreResult, null, 2)}</pre>
+          ) : null}
+        </section>
         <section className="devPanel" aria-label="Auth tools">
           <h2>Sign-in & cloud harness</h2>
           <p className="hint">Entra PKCE. Cosms/Storage use separate resource tokens when needed.</p>
@@ -956,12 +1030,40 @@ export default function App() {
         </div>
 
         <section className="reviewCard" aria-label="Tinder-style review">
+          {acceptProgress ? (
+            <div
+              className="reviewBusyOverlay"
+              role="alertdialog"
+              aria-busy="true"
+              aria-live="assertive"
+              aria-label="Upload in progress"
+            >
+              <p className="reviewBusyTitle">
+                {acceptProgress.phase === 'moving'
+                  ? 'Finishing accept…'
+                  : acceptProgress.phase === 'preparing'
+                    ? 'Preparing accept…'
+                    : 'Uploading to cloud…'}
+              </p>
+              <p className="hint reviewBusyDetail">{acceptProgressLabel(acceptProgress)}</p>
+              {acceptProgress.percent !== null ? (
+                <progress
+                  className="reviewBusyProgress"
+                  max={100}
+                  value={acceptProgress.percent}
+                />
+              ) : (
+                <progress className="reviewBusyProgress" />
+              )}
+              <p className="hint">Other actions are paused until this finishes.</p>
+            </div>
+          ) : null}
           <p className="reviewCounter" role="status">
             {reviewQueue.length === 0
               ? 'Queue empty — run a scan to load unknowns.'
               : `${reviewIndex + 1} / ${reviewQueue.length}`}
           </p>
-          <ReviewMediaStage preview={preview} currentReviewPath={currentReviewPath} />
+          <ReviewMediaStage currentReviewPath={currentReviewPath} />
           <p className="reviewPath" title={currentReviewPath ?? undefined}>
             {currentReviewPath ?? '—'}
           </p>
@@ -1117,10 +1219,10 @@ export default function App() {
       </section>
 
       <section className="devPanel" aria-label="Restore preserve">
-        <h2>Restore preserve</h2>
+        <h2>Sync from cloud</h2>
         <p className="hint">
-          Download ACCEPTED+SYNCED blobs with your user token, verify SHA-256, rebuild
-          preserve/YYYY/MM from Cosms organizeDate. Skips files that already match.
+          Same as Tools → Sync from cloud: download ACCEPTED+SYNCED blobs into preserve/. Prefer
+          Tools for the primary entry point.
         </p>
         <div className="row">
           <button
@@ -1129,6 +1231,9 @@ export default function App() {
             onClick={() => void runRestore()}
           >
             Restore from Blob
+          </button>
+          <button type="button" disabled={busy} onClick={() => dispatch(screenSet('tools'))}>
+            Open Tools
           </button>
         </div>
         <p className="status" role="status">

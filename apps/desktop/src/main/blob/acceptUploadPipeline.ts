@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import type { MediaInspection } from '../../shared/mediaTypes'
 import type { CloudStatus, MediaDecisionDocument } from '../../shared/decisionTypes'
+import type { ReviewAcceptProgress } from '../../shared/reviewTypes'
 import type { DecisionRepository } from '../cosmos/decisionRepository'
 import { buildCloudObjectId } from './blobConfig'
 import type { BlobUploadStore } from './blobUploader'
@@ -14,6 +15,20 @@ export type AcceptUploadResult = {
   sourceMoved: false
 }
 
+function emitProgress(
+  onProgress: ((progress: ReviewAcceptProgress) => void) | undefined,
+  progress: ReviewAcceptProgress,
+): void {
+  onProgress?.(progress)
+}
+
+function percentOf(uploaded: number, total: number): number | null {
+  if (total <= 0) {
+    return null
+  }
+  return Math.min(100, Math.round((uploaded / total) * 100))
+}
+
 /**
  * Cosms ACCEPTED (PENDING) → UPLOADING → Blob upload → SYNCED (or FAILED).
  * Does not move the local file.
@@ -23,15 +38,25 @@ export async function acceptAndUploadMedia(args: {
   userId: string
   decisions: DecisionRepository
   blobs: BlobUploadStore
+  onProgress?: (progress: ReviewAcceptProgress) => void
 }): Promise<AcceptUploadResult> {
-  const { inspection, userId, decisions, blobs } = args
+  const { inspection, userId, decisions, blobs, onProgress } = args
   const statusTrail: CloudStatus[] = []
+  const bytesTotal = inspection.fileSize
 
   if (!existsSync(inspection.sourcePath)) {
     throw new Error(`Source file not found: ${inspection.sourcePath}`)
   }
 
   const cloudObjectId = buildCloudObjectId(userId, inspection.contentHash)
+
+  emitProgress(onProgress, {
+    phase: 'preparing',
+    sourcePath: inspection.sourcePath,
+    bytesUploaded: 0,
+    bytesTotal,
+    percent: percentOf(0, bytesTotal),
+  })
 
   let document = await decisions.upsertAccepted({
     contentHash: inspection.contentHash,
@@ -54,11 +79,28 @@ export async function acceptAndUploadMedia(args: {
   })
   statusTrail.push('UPLOADING')
 
+  emitProgress(onProgress, {
+    phase: 'uploading',
+    sourcePath: inspection.sourcePath,
+    bytesUploaded: 0,
+    bytesTotal,
+    percent: percentOf(0, bytesTotal),
+  })
+
   try {
     const uploaded = await blobs.uploadFile({
       cloudObjectId,
       localPath: inspection.sourcePath,
       contentType: inspection.mediaType,
+      onProgress: (loadedBytes) => {
+        emitProgress(onProgress, {
+          phase: 'uploading',
+          sourcePath: inspection.sourcePath,
+          bytesUploaded: loadedBytes,
+          bytesTotal,
+          percent: percentOf(loadedBytes, bytesTotal),
+        })
+      },
     })
 
     document = await decisions.updateCloudSync(inspection.contentHash, {

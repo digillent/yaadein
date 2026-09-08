@@ -91,9 +91,11 @@ describe('redux store slices', () => {
         dataUrl: null,
       }),
     )
+    const kept = store.getState().review.preview
     store.dispatch(reviewIndexSet(1))
     expect(selectCurrentReviewPath(store.getState())).toBe('/b.jpg')
-    expect(store.getState().review.preview).toBeNull()
+    // Keep prior preview on nav so the stage does not blank between ←/→.
+    expect(store.getState().review.preview).toEqual(kept)
     store.dispatch(reviewAdvanced())
     expect(store.getState().review.queue).toEqual(['/a.jpg', '/c.jpg'])
     expect(selectCurrentReviewPath(store.getState())).toBe('/c.jpg')

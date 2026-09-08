@@ -28,6 +28,8 @@ export type BlobMediaStore = {
     cloudObjectId: string
     localPath: string
     contentType?: string
+    /** Loaded byte count from Azure transfer progress. */
+    onProgress?: (loadedBytes: number) => void
   }): Promise<{ cloudObjectId: string; blobUrl: string }>
   downloadFile(args: {
     cloudObjectId: string
@@ -60,10 +62,15 @@ export function createBlobUploadStore(
   const container = service.getContainerClient(config.containerName)
 
   return {
-    async uploadFile({ cloudObjectId, localPath, contentType }) {
+    async uploadFile({ cloudObjectId, localPath, contentType, onProgress }) {
       const blockBlob: BlockBlobClient = container.getBlockBlobClient(cloudObjectId)
       await blockBlob.uploadFile(localPath, {
         blobHTTPHeaders: contentType ? { blobContentType: contentType } : undefined,
+        onProgress: onProgress
+          ? (event) => {
+              onProgress(event.loadedBytes)
+            }
+          : undefined,
       })
       return {
         cloudObjectId,

@@ -18,6 +18,10 @@ export type CherishMediaEntry = {
   /** True when Cosms has an ACCEPTED+SYNCED doc for this hash. */
   hasCosmosAccepted: boolean
   originalFilename: string
+  /** Local preserve/ files with this exact content hash (including this entry). */
+  localCopyCount: number
+  /** Other preserve/ relative paths with the same hash (not the displayed keeper). */
+  extraLocalPaths: string[]
 }
 
 export type CherishListResult = {
