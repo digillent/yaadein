@@ -18,11 +18,12 @@ describe('exactDuplicates', () => {
     expect([...peerCandidateSizes(files)]).toEqual([10])
   })
 
-  it('treats Cosms ACCEPTED hash as duplicate and REJECTED as rejected', () => {
+  it('treats Cosms ACCEPTED+SYNCED as duplicate and REJECTED as rejected', () => {
     expect(
       classifyExactDuplicate({
         contentHash: 'h1',
         cosmosDecision: 'ACCEPTED',
+        cosmosCloudStatus: 'SYNCED',
         seenHashes: new Set(),
       }),
     ).toEqual({ kind: 'duplicate', reason: 'cosmos_accepted' })
@@ -31,9 +32,30 @@ describe('exactDuplicates', () => {
       classifyExactDuplicate({
         contentHash: 'h1',
         cosmosDecision: 'REJECTED',
+        cosmosCloudStatus: 'NOT_REQUIRED',
         seenHashes: new Set(),
       }),
     ).toEqual({ kind: 'rejected' })
+  })
+
+  it('does not treat ACCEPTED without SYNCED as cosmos duplicate', () => {
+    expect(
+      classifyExactDuplicate({
+        contentHash: 'h1',
+        cosmosDecision: 'ACCEPTED',
+        cosmosCloudStatus: 'FAILED',
+        seenHashes: new Set(),
+      }),
+    ).toEqual({ kind: 'unknown' })
+
+    expect(
+      classifyExactDuplicate({
+        contentHash: 'h1',
+        cosmosDecision: 'ACCEPTED',
+        cosmosCloudStatus: 'PENDING',
+        seenHashes: new Set(),
+      }),
+    ).toEqual({ kind: 'unknown' })
   })
 
   it('marks later same-hash peers as scan_peer duplicates; first stays unknown', () => {

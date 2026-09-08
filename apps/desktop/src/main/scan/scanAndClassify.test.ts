@@ -83,6 +83,7 @@ describe('scanAndClassify', () => {
           contentHash: acceptedHash,
           fileSize: acceptedBytes.length,
           decision: 'ACCEPTED',
+          cloudStatus: 'SYNCED',
           decidedAt: '2026-01-01T00:00:00.000Z',
         })
       }

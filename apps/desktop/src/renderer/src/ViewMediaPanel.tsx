@@ -212,8 +212,8 @@ export function ViewMediaPanel({
 
       <p className="hint">
         Previewable media under {workingRoot}/preserve/ only (skips .DS_Store and other non-media).
-        Multi-select tags use <strong>AND</strong>. Reject deletes the Blob, writes Cosms REJECTED,
-        and moves the file to rejected/.
+        Multi-select tags use <strong>AND</strong>. Reject writes Cosms REJECTED, moves to
+        rejected/, then deletes the Blob.
       </p>
 
       <div className="cherishFilters" aria-label="Tag filters">

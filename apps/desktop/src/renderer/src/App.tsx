@@ -410,6 +410,10 @@ export default function App() {
   }
 
   async function acceptCurrent(): Promise<void> {
+    if (!session.signedIn) {
+      dispatch(statusSet('Sign in required to accept.'))
+      return
+    }
     if (!currentReviewPath || !workingRoot) {
       dispatch(statusSet('Need a review item and working folder.'))
       return
@@ -432,6 +436,10 @@ export default function App() {
   }
 
   async function rejectCurrent(): Promise<void> {
+    if (!session.signedIn) {
+      dispatch(statusSet('Sign in required to reject.'))
+      return
+    }
     if (!currentReviewPath || !workingRoot) {
       dispatch(statusSet('Need a review item and working folder.'))
       return
@@ -570,7 +578,15 @@ export default function App() {
         return
       }
       if (action === 'accept') {
+        if (!session.signedIn) {
+          dispatch(statusSet('Sign in required to accept.'))
+          return
+        }
         void acceptCurrent()
+        return
+      }
+      if (!session.signedIn) {
+        dispatch(statusSet('Sign in required to reject.'))
         return
       }
       void rejectCurrent()

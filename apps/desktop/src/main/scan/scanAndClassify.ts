@@ -148,6 +148,7 @@ export async function scanAndClassify(
         const classification = classifyExactDuplicate({
           contentHash: item.contentHash,
           cosmosDecision: known?.decision,
+          cosmosCloudStatus: known?.cloudStatus,
           seenHashes,
         })
 

@@ -6,6 +6,7 @@ import {
   reviewQueueLoaded,
   reviewAdvanced,
   reviewIndexSet,
+  reviewPreviewUpdated,
   selectCurrentReviewPath,
 } from './reviewSlice'
 import { workingRootSet, scanRootSet, eventDateOverrideSet } from './settingsSlice'
@@ -81,8 +82,18 @@ describe('redux store slices', () => {
     const store = createAppStore()
     store.dispatch(reviewQueueLoaded(['/a.jpg', '/b.jpg', '/c.jpg']))
     expect(selectCurrentReviewPath(store.getState())).toBe('/a.jpg')
+    store.dispatch(
+      reviewPreviewUpdated({
+        sourcePath: '/a.jpg',
+        mediaType: 'image/jpeg',
+        kind: 'image',
+        streamUrl: 'yaadein-media://local/?path=%2Fa.jpg',
+        dataUrl: null,
+      }),
+    )
     store.dispatch(reviewIndexSet(1))
     expect(selectCurrentReviewPath(store.getState())).toBe('/b.jpg')
+    expect(store.getState().review.preview).toBeNull()
     store.dispatch(reviewAdvanced())
     expect(store.getState().review.queue).toEqual(['/a.jpg', '/c.jpg'])
     expect(selectCurrentReviewPath(store.getState())).toBe('/c.jpg')

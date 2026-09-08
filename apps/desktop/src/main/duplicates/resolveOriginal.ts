@@ -6,6 +6,7 @@ import type { DuplicateComparePair } from '../../shared/duplicateTypes'
 import { buildCloudObjectId } from '../blob/blobConfig'
 import type { BlobMediaStore } from '../blob/blobUploader'
 import { hashFileContent } from '../media/hashFile'
+import { isMediaPath } from '../media/mediaType'
 import { bucketDirectory, destinationDirectory, destinationFilePath } from '../workingFolder/paths'
 import { ensureWorkingFolder } from '../workingFolder/ensureTree'
 import { isPathInsideRoot } from '../workingFolder/cleanupLocal'
@@ -164,6 +165,9 @@ export async function findPreserveFileByHash(
   const candidates: string[] = []
   await walkFiles(preserveRoot, async (absolutePath) => {
     try {
+      if (!isMediaPath(absolutePath)) {
+        return
+      }
       const fileStat = await stat(absolutePath)
       if (fileStat.isFile() && fileStat.size === fileSize) {
         candidates.push(absolutePath)

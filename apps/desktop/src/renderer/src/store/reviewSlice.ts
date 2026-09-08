@@ -25,10 +25,12 @@ const reviewSlice = createSlice({
     reviewIndexSet(state, action: PayloadAction<number>) {
       if (state.queue.length === 0) {
         state.index = 0
+        state.preview = null
         return
       }
       const next = action.payload % state.queue.length
       state.index = next < 0 ? next + state.queue.length : next
+      state.preview = null
     },
     reviewAdvanced(state) {
       const next = state.queue.filter((_, i) => i !== state.index)
