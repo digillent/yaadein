@@ -11,6 +11,43 @@ Clear digital clutter and preserve the memories that matter.
 | [ROADMAP.md](ROADMAP.md) | Milestones |
 | [AGENTS.md](AGENTS.md) | Agent coding rules |
 
+## Prerequisites
+
+### Local
+
+- Node.js 20+ and [pnpm](https://pnpm.io)
+- macOS or Windows (Electron desktop)
+
+### Azure (required for sign-in, scan, accept/reject)
+
+Solo MVP uses **Entra user tokens + Azure RBAC**. Do **not** put Cosms or storage **account keys** in the app.
+
+1. **Entra ID app registration** (public client / mobile & desktop)
+   - Single-tenant is fine for personal use
+   - Redirect URI: `http://localhost` (public client / native)
+   - No client secret
+   - API permissions (delegated):
+     - Azure Cosmos DB → `user_impersonation`
+     - Azure Storage → `user_impersonation`
+     - Microsoft Graph → `User.Read` (optional; Tools → Call Graph `/me`)
+   - Copy **Application (client) ID** and **Directory (tenant) ID** into `.env`
+
+2. **Azure Cosmos DB** (NoSQL)
+   - Account endpoint URL only (no keys)
+   - Database `yaadein`, container `media`, partition key `/userId`
+   - Grant the signed-in user (or a group) a data-plane role such as **Cosmos DB Built-in Data Contributor** on the account or database
+
+3. **Azure Blob Storage**
+   - Account URL like `https://<account>.blob.core.windows.net` (no keys)
+   - Container `media` (create if missing)
+   - Grant the signed-in user **Storage Blob Data Contributor** on the account or container
+
+4. **App config**
+   - Copy `apps/desktop/.env.example` → `apps/desktop/.env` and fill the public IDs/endpoints
+   - Optional overrides: `YAADEIN_COSMOS_SCOPE`, `YAADEIN_BLOB_SCOPE` (defaults are the `user_impersonation` scopes above)
+
+Without sign-in + these RBAC assignments, classify/accept/reject fail closed (by design).
+
 ## Locked decisions (summary)
 
 - **Cosmos** is the decision store — **no local SQL decision cache**
@@ -48,7 +85,7 @@ pnpm test
 pnpm lint
 ```
 
-Desktop app: `apps/desktop`. Copy `apps/desktop/.env.example` → `apps/desktop/.env` and fill Entra IDs + Cosms/Blob endpoints (public client config only — never account keys).
+Desktop app: `apps/desktop`. See **Prerequisites** above, then copy `apps/desktop/.env.example` → `apps/desktop/.env` and fill Entra IDs + Cosms/Blob endpoints (public client config only — never account keys).
 
 ## Create Mac / Windows executables
 
