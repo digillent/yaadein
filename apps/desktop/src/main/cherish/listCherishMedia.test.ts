@@ -3,12 +3,44 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { listCherishMedia } from './listCherishMedia'
+import { dedupeCherishByContentHash, listCherishMedia } from './listCherishMedia'
 import type { MediaDecisionDocument } from '../../shared/decisionTypes'
 
 function sha256(content: string): string {
   return createHash('sha256').update(content).digest('hex')
 }
+
+describe('dedupeCherishByContentHash', () => {
+  it('keeps one entry per hash and lists extras', () => {
+    const hash = 'abc'
+    const deduped = dedupeCherishByContentHash([
+      {
+        absolutePath: '/w/preserve/2026/01/b.jpg',
+        relativePath: '2026/01/b.jpg',
+        contentHash: hash,
+        fileSize: 3,
+        yearMonth: '2026/01',
+        tags: { people: [], places: [], events: [] },
+        hasCosmosAccepted: false,
+        originalFilename: 'b.jpg',
+      },
+      {
+        absolutePath: '/w/preserve/2026/01/a.jpg',
+        relativePath: '2026/01/a.jpg',
+        contentHash: hash,
+        fileSize: 3,
+        yearMonth: '2026/01',
+        tags: { people: ['A'], places: [], events: [] },
+        hasCosmosAccepted: true,
+        originalFilename: 'a.jpg',
+      },
+    ])
+    expect(deduped).toHaveLength(1)
+    expect(deduped[0]?.relativePath).toBe('2026/01/a.jpg')
+    expect(deduped[0]?.localCopyCount).toBe(2)
+    expect(deduped[0]?.extraLocalPaths).toEqual(['2026/01/b.jpg'])
+  })
+})
 
 describe('listCherishMedia', () => {
   it('lists preserve files and attaches Cosms ACCEPTED tags', async () => {
@@ -46,9 +78,25 @@ describe('listCherishMedia', () => {
       absolutePath: path,
       contentHash: hash,
       hasCosmosAccepted: true,
+      localCopyCount: 1,
+      extraLocalPaths: [],
       tags: { people: ['Aaryan'], places: ['Home'], events: [] },
     })
     expect(result.files[0]?.relativePath.replace(/\\/g, '/')).toBe('2026/03/keep.jpg')
+  })
+
+  it('collapses same-hash local copies to one tile', async () => {
+    const work = mkdtempSync(join(tmpdir(), 'yaadein-cherish-'))
+    mkdirSync(join(work, 'preserve', '2026', '01'), { recursive: true })
+    mkdirSync(join(work, 'preserve', '2025', '12'), { recursive: true })
+    const body = 'same-bytes-xx'
+    writeFileSync(join(work, 'preserve', '2026', '01', 'copy-a.jpg'), body)
+    writeFileSync(join(work, 'preserve', '2025', '12', 'copy-b.jpg'), body)
+
+    const result = await listCherishMedia(work, {})
+    expect(result.files).toHaveLength(1)
+    expect(result.files[0]?.localCopyCount).toBe(2)
+    expect(result.files[0]?.extraLocalPaths).toHaveLength(1)
   })
 
   it('lists preserve without Cosms when decisions omitted', async () => {

@@ -1,8 +1,9 @@
-import { readdir, rm, stat, unlink } from 'node:fs/promises'
+import { readdir, stat, unlink } from 'node:fs/promises'
 import { relative, resolve, sep } from 'node:path'
 import { isMediaPath } from '../media/mediaType'
 import { bucketDirectory } from './paths'
 import { yearMonthFromCleanupRelativePath } from './yearMonthPath'
+import { pruneEmptyDirTree } from './pruneEmptyDirs'
 import type { CleanupBucket, CleanupFileEntry, CleanupListResult } from '../../shared/cleanupTypes'
 import { CLEANUP_BUCKETS } from '../../shared/cleanupTypes'
 
@@ -109,7 +110,7 @@ export async function deleteCleanupFiles(
     }
   }
 
-  await pruneEmptyDirs(bucketRoot)
+  await pruneEmptyDirTree(bucketRoot, { removeRoot: false })
   return { deleted, failed }
 }
 
@@ -134,31 +135,6 @@ async function walkFiles(
       await walkFiles(full, onFile)
     } else if (entry.isFile()) {
       await onFile(full)
-    }
-  }
-}
-
-/** Remove empty YYYY/MM directories left after deletes (best-effort). */
-async function pruneEmptyDirs(dir: string): Promise<void> {
-  let entries
-  try {
-    entries = await readdir(dir, { withFileTypes: true })
-  } catch {
-    return
-  }
-
-  for (const entry of entries) {
-    if (entry.isDirectory()) {
-      const child = resolve(dir, entry.name)
-      await pruneEmptyDirs(child)
-      try {
-        const remaining = await readdir(child)
-        if (remaining.length === 0) {
-          await rm(child, { recursive: false })
-        }
-      } catch {
-        // ignore
-      }
     }
   }
 }

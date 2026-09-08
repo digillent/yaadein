@@ -10,6 +10,12 @@ export {
 } from './paths'
 export { ensureWorkingFolder } from './ensureTree'
 export { moveMediaIntoWorkingFolder } from './safeMove'
+export {
+  pruneEmptyDirTree,
+  pruneEmptyAncestors,
+  removeDirIfEmptyOrJunkOnly,
+  isJunkFileName,
+} from './pruneEmptyDirs'
 export { captureDateFromStats, resolveFilesystemCaptureDate } from './filesystemCaptureDate'
 export {
   assertCleanupBucket,

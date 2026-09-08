@@ -4,6 +4,7 @@ import type { MediaPreview } from '@shared/reviewTypes'
 export type ReviewState = {
   queue: string[]
   index: number
+  /** Optional cached preview; UI prefers sync build from current path. */
   preview: MediaPreview | null
 }
 
@@ -25,16 +26,20 @@ const reviewSlice = createSlice({
     reviewIndexSet(state, action: PayloadAction<number>) {
       if (state.queue.length === 0) {
         state.index = 0
+        state.preview = null
         return
       }
       const next = action.payload % state.queue.length
       state.index = next < 0 ? next + state.queue.length : next
+      // Keep prior preview until the next path paints (avoids blank flash on ←/→).
     },
     reviewAdvanced(state) {
       const next = state.queue.filter((_, i) => i !== state.index)
       state.queue = next
       state.index = next.length === 0 ? 0 : Math.min(state.index, next.length - 1)
-      state.preview = null
+      if (next.length === 0) {
+        state.preview = null
+      }
     },
     reviewPreviewUpdated(state, action: PayloadAction<MediaPreview | null>) {
       state.preview = action.payload

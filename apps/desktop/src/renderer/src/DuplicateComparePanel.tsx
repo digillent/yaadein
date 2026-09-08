@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { CleanupFileEntry } from '@shared/cleanupTypes'
 import type { DuplicateComparePair } from '@shared/duplicateTypes'
-import type { MediaPreview } from '@shared/reviewTypes'
+import { buildLocalMediaPreview } from '@shared/buildLocalMediaPreview'
 import { duplicateActionFromKey } from './duplicateKeys'
 
 type Props = {
@@ -17,13 +17,12 @@ type Props = {
 function PreviewPane({
   label,
   path,
-  preview,
 }: {
   label: string
   path: string | null
-  preview: MediaPreview | null | undefined
 }) {
-  const src = preview?.streamUrl ?? preview?.dataUrl ?? null
+  const preview = path ? buildLocalMediaPreview(path) : null
+  const src = preview?.streamUrl ?? null
   return (
     <div className="dupPane">
       <h3>{label}</h3>
@@ -56,8 +55,6 @@ export function DuplicateComparePanel({
   const [files, setFiles] = useState<CleanupFileEntry[]>([])
   const [index, setIndex] = useState(0)
   const [pair, setPair] = useState<DuplicateComparePair | null>(null)
-  const [dupPreview, setDupPreview] = useState<MediaPreview | null>(null)
-  const [origPreview, setOrigPreview] = useState<MediaPreview | null>(null)
   const [resolving, setResolving] = useState(false)
 
   const current = files[index] ?? null
@@ -86,35 +83,9 @@ export function DuplicateComparePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workingRoot])
 
-  // Always preview the duplicate from the working folder, independent of Cosms resolve.
-  useEffect(() => {
-    if (!current) {
-      setDupPreview(null)
-      return
-    }
-    let cancelled = false
-    void window.yaadein.previewMedia(current.absolutePath).then(
-      (preview) => {
-        if (!cancelled) {
-          setDupPreview(preview)
-        }
-      },
-      () => {
-        if (!cancelled) {
-          setDupPreview(null)
-        }
-      },
-    )
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.absolutePath])
-
   useEffect(() => {
     if (!current) {
       setPair(null)
-      setOrigPreview(null)
       return
     }
 
@@ -130,25 +101,10 @@ export function DuplicateComparePanel({
           return
         }
         setPair(resolved)
-        if (resolved.original.path) {
-          try {
-            const orig = await window.yaadein.previewMedia(resolved.original.path)
-            if (!cancelled) {
-              setOrigPreview(orig)
-            }
-          } catch {
-            if (!cancelled) {
-              setOrigPreview(null)
-            }
-          }
-        } else {
-          setOrigPreview(null)
-        }
         onStatus(resolved.original.detail)
       } catch (error) {
         if (!cancelled) {
           setPair(null)
-          setOrigPreview(null)
           onStatus(error instanceof Error ? error.message : String(error))
         }
       } finally {
@@ -252,16 +208,8 @@ export function DuplicateComparePanel({
       </p>
 
       <div className="dupSideBySide">
-        <PreviewPane
-          label="Original"
-          path={pair?.original.path ?? null}
-          preview={origPreview}
-        />
-        <PreviewPane
-          label="Duplicate"
-          path={current?.absolutePath ?? null}
-          preview={dupPreview}
-        />
+        <PreviewPane label="Original" path={pair?.original.path ?? null} />
+        <PreviewPane label="Duplicate" path={current?.absolutePath ?? null} />
       </div>
 
       {pair ? (

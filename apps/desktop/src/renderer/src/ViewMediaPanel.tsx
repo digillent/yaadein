@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CherishListResult, CherishMediaEntry, TagFilter } from '@shared/cherishTypes'
-import type { MediaPreview } from '@shared/reviewTypes'
+import { buildLocalMediaPreview } from '@shared/buildLocalMediaPreview'
 import {
   collectTagFilters,
   matchesAllTagFilters,
   tagFilterKey,
 } from '@shared/tagFilter'
+import { LazyMediaThumb } from './LazyMediaThumb'
+
+const GRID_PAGE_SIZE = 120
 
 type Props = {
   workingRoot: string
@@ -15,6 +18,7 @@ type Props = {
   onBusy: (run: () => Promise<void>) => Promise<void>
   onSignIn: () => Promise<void>
   onBackHome: () => void
+  onRestoreFromCloud: () => Promise<void>
 }
 
 function formatTags(entry: CherishMediaEntry): string {
@@ -26,6 +30,13 @@ function formatTags(entry: CherishMediaEntry): string {
   return parts.length > 0 ? parts.join(' · ') : 'No tags'
 }
 
+function formatCopyNote(entry: CherishMediaEntry): string | null {
+  if (entry.localCopyCount <= 1) {
+    return null
+  }
+  return `${entry.localCopyCount} local copies (same SHA-256); extras: ${entry.extraLocalPaths.join(', ')}`
+}
+
 /** Browse preserve/ keepers with multi-select tag filters (AND); reject to rejected/. */
 export function ViewMediaPanel({
   workingRoot,
@@ -35,12 +46,13 @@ export function ViewMediaPanel({
   onBusy,
   onSignIn,
   onBackHome,
+  onRestoreFromCloud,
 }: Props) {
   const [list, setList] = useState<CherishListResult | null>(null)
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set())
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(() => new Set())
-  const [previews, setPreviews] = useState<Record<string, MediaPreview | null>>({})
   const [focusPath, setFocusPath] = useState<string | null>(null)
+  const [visibleCount, setVisibleCount] = useState(GRID_PAGE_SIZE)
 
   const availableFilters = useMemo(
     () => collectTagFilters(list?.files ?? []),
@@ -57,8 +69,17 @@ export function ViewMediaPanel({
     return files.filter((file) => matchesAllTagFilters(file.tags, selectedFilters))
   }, [list, selectedFilters])
 
+  useEffect(() => {
+    setVisibleCount(GRID_PAGE_SIZE)
+  }, [selectedFilters, list])
+
+  const gridFiles = useMemo(
+    () => visibleFiles.slice(0, visibleCount),
+    [visibleFiles, visibleCount],
+  )
+
   const focusEntry = visibleFiles.find((f) => f.absolutePath === focusPath) ?? null
-  const focusPreview = focusEntry ? previews[focusEntry.absolutePath] : null
+  const focusPreview = focusEntry ? buildLocalMediaPreview(focusEntry.absolutePath) : null
 
   async function refreshList(): Promise<void> {
     await onBusy(async () => {
@@ -68,11 +89,17 @@ export function ViewMediaPanel({
         setSelectedKeys(new Set())
         setSelectedPaths(new Set())
         setFocusPath(null)
+        setVisibleCount(GRID_PAGE_SIZE)
         const tagged = next.files.filter((f) => f.hasCosmosAccepted).length
+        const extras = next.files.reduce((sum, f) => sum + Math.max(0, f.localCopyCount - 1), 0)
         onStatus(
           next.tagsFromCosmos
-            ? `View media: ${next.files.length} previewable in preserve/ (${tagged} with Cosms tags)`
-            : `View media: ${next.files.length} previewable in preserve/ (sign in for Cosms tags)`,
+            ? `View media: ${next.files.length} unique hash(es) in preserve/ (${tagged} with Cosms tags)${
+                extras > 0 ? `; ${extras} extra local copy(ies) hidden` : ''
+              }`
+            : `View media: ${next.files.length} unique hash(es) in preserve/ (sign in for Cosms tags)${
+                extras > 0 ? `; ${extras} extra local copy(ies) hidden` : ''
+              }`,
         )
       } catch (error) {
         setList(null)
@@ -85,36 +112,6 @@ export function ViewMediaPanel({
     void refreshList()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workingRoot, signedIn])
-
-  useEffect(() => {
-    let cancelled = false
-    const load = async (): Promise<void> => {
-      const next: Record<string, MediaPreview | null> = { ...previews }
-      const paths = [
-        ...visibleFiles.slice(0, 48).map((f) => f.absolutePath),
-        ...(focusPath ? [focusPath] : []),
-      ]
-      for (const path of paths) {
-        if (next[path] !== undefined) {
-          continue
-        }
-        try {
-          next[path] = await window.yaadein.previewMedia(path)
-        } catch {
-          next[path] = null
-        }
-        if (cancelled) {
-          return
-        }
-        setPreviews({ ...next })
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleFiles, focusPath])
 
   function toggleFilter(filter: TagFilter): void {
     const key = tagFilterKey(filter)
@@ -196,6 +193,13 @@ export function ViewMediaPanel({
         <button type="button" disabled={busy} onClick={() => void refreshList()}>
           Refresh
         </button>
+        <button
+          type="button"
+          disabled={busy || !signedIn}
+          onClick={() => void onRestoreFromCloud()}
+        >
+          Restore from cloud
+        </button>
         {!signedIn ? (
           <button type="button" disabled={busy} onClick={() => void onSignIn()}>
             Sign in
@@ -212,8 +216,9 @@ export function ViewMediaPanel({
 
       <p className="hint">
         Previewable media under {workingRoot}/preserve/ only (skips .DS_Store and other non-media).
-        Multi-select tags use <strong>AND</strong>. Reject deletes the Blob, writes Cosms REJECTED,
-        and moves the file to rejected/.
+        One tile per exact content hash (SHA-256); extra local copies of the same bytes are noted,
+        not shown as separate tiles. Multi-select tags use <strong>AND</strong>. Reject writes Cosms
+        REJECTED, moves to rejected/, then deletes the Blob.
       </p>
 
       <div className="cherishFilters" aria-label="Tag filters">
@@ -260,7 +265,8 @@ export function ViewMediaPanel({
       </div>
 
       <p className="status" role="status">
-        {visibleFiles.length} of {list?.files.length ?? 0} shown
+        Showing {gridFiles.length} of {visibleFiles.length} match
+        {list ? ` (${list.files.length} unique in preserve/)` : ''}
         {selectedFilters.length > 0
           ? ` · AND ${selectedFilters.map(tagFilterKey).join(', ')}`
           : ''}
@@ -281,18 +287,16 @@ export function ViewMediaPanel({
             </button>
           </div>
           <div className="cherishFocusStage">
-            {focusPreview?.kind === 'video' &&
-            (focusPreview.streamUrl || focusPreview.dataUrl) ? (
+            {focusPreview?.kind === 'video' && focusPreview.streamUrl ? (
               <video
-                src={focusPreview.streamUrl ?? focusPreview.dataUrl ?? undefined}
+                src={focusPreview.streamUrl}
                 controls
                 playsInline
                 className="cherishFocusMedia"
               />
-            ) : focusPreview?.kind === 'image' &&
-              (focusPreview.streamUrl || focusPreview.dataUrl) ? (
+            ) : focusPreview?.kind === 'image' && focusPreview.streamUrl ? (
               <img
-                src={focusPreview.dataUrl ?? focusPreview.streamUrl ?? undefined}
+                src={focusPreview.streamUrl}
                 alt={focusEntry.originalFilename}
                 className="cherishFocusMedia"
               />
@@ -302,13 +306,14 @@ export function ViewMediaPanel({
           </div>
           <p className="cherishName">{focusEntry.relativePath}</p>
           <p className="hint">{formatTags(focusEntry)}</p>
+          {formatCopyNote(focusEntry) ? (
+            <p className="hint cherishCopyNote">{formatCopyNote(focusEntry)}</p>
+          ) : null}
         </div>
       ) : null}
 
       <div className="cherishGrid">
-        {visibleFiles.map((file) => {
-          const preview = previews[file.absolutePath]
-          const src = preview?.dataUrl ?? preview?.streamUrl ?? null
+        {gridFiles.map((file) => {
           const checked = selectedPaths.has(file.absolutePath)
           return (
             <div key={file.absolutePath} className="cherishCard">
@@ -327,22 +332,33 @@ export function ViewMediaPanel({
                 disabled={busy}
                 onClick={() => setFocusPath(file.absolutePath)}
               >
-                <div className="cherishThumb">
-                  {preview?.kind === 'video' && src ? (
-                    <video src={src} muted playsInline />
-                  ) : preview?.kind === 'image' && src ? (
-                    <img src={src} alt={file.originalFilename} />
-                  ) : (
-                    <span className="hint">…</span>
-                  )}
-                </div>
+                <LazyMediaThumb
+                  absolutePath={file.absolutePath}
+                  alt={file.originalFilename}
+                  className="cherishThumb"
+                />
                 <p className="cherishName">{file.originalFilename}</p>
                 <p className="hint cherishTagLine">{formatTags(file)}</p>
+                {file.localCopyCount > 1 ? (
+                  <p className="hint cherishCopyNote">{file.localCopyCount}× same hash</p>
+                ) : null}
               </button>
             </div>
           )
         })}
       </div>
+
+      {visibleFiles.length > gridFiles.length ? (
+        <div className="row">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setVisibleCount((n) => n + GRID_PAGE_SIZE)}
+          >
+            Show more ({visibleFiles.length - gridFiles.length} remaining)
+          </button>
+        </div>
+      ) : null}
 
       {visibleFiles.length === 0 ? (
         <p className="hint">

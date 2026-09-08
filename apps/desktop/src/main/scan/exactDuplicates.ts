@@ -1,3 +1,5 @@
+import type { CloudDecision, CloudStatus } from '../../shared/decisionTypes'
+
 export type SizedMediaFile = {
   sourcePath: string
   fileSize: number
@@ -44,17 +46,21 @@ export type ExactDuplicateClass =
  * Classify one hashed file given Cosms decision (if any) and hashes already
  * seen earlier in this scan. Never emits a Cosms DUPLICATE write — callers
  * only move locally.
+ *
+ * Cosms ACCEPTED only counts as a keeper duplicate when cloudStatus is SYNCED
+ * (Blob upload succeeded). ACCEPTED+FAILED/PENDING stays reviewable unknown.
  */
 export function classifyExactDuplicate(args: {
   contentHash: string
-  cosmosDecision: 'ACCEPTED' | 'REJECTED' | undefined
+  cosmosDecision: CloudDecision | undefined
+  cosmosCloudStatus?: CloudStatus | null
   /** Hashes already encountered earlier in this scan (keeper or moved). */
   seenHashes: ReadonlySet<string>
 }): ExactDuplicateClass {
   if (args.cosmosDecision === 'REJECTED') {
     return { kind: 'rejected' }
   }
-  if (args.cosmosDecision === 'ACCEPTED') {
+  if (args.cosmosDecision === 'ACCEPTED' && args.cosmosCloudStatus === 'SYNCED') {
     return { kind: 'duplicate', reason: 'cosmos_accepted' }
   }
   if (args.seenHashes.has(args.contentHash)) {

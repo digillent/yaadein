@@ -15,10 +15,11 @@ import {
 
 /**
  * Reject a keeper under preserve/:
- * 1) delete Blob for the ACCEPTED original
- * 2) Cosms lean REJECTED (overwrites ACCEPTED)
- * 3) move local file to rejected/
- * Previewable media only.
+ * 1) Cosms lean REJECTED (overwrites ACCEPTED)
+ * 2) move local file to rejected/
+ * 3) delete Blob for the former ACCEPTED original
+ * Previewable media only. Blob delete runs last so a Cosms/move failure
+ * does not leave ACCEPTED without cloud bytes.
  */
 export async function rejectPreserveMedia(args: {
   inspection: MediaInspection
@@ -46,12 +47,22 @@ export async function rejectPreserveMedia(args: {
   const cloudObjectId =
     accepted?.cloudObjectId?.trim() || buildCloudObjectId(userId, inspection.contentHash)
 
-  await blobs.deleteFile({ cloudObjectId })
-
-  return rejectUnknownMedia({
+  const result = await rejectUnknownMedia({
     inspection,
     workingRoot,
     decisions,
     moveFile: args.moveFile,
   })
+
+  try {
+    await blobs.deleteFile({ cloudObjectId })
+  } catch (error) {
+    throw new Error(
+      `Moved to rejected/ and Cosms REJECTED, but Blob delete failed (${cloudObjectId}): ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    )
+  }
+
+  return result
 }

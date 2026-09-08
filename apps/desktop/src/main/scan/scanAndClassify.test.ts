@@ -12,7 +12,7 @@ function sha256(bytes: string): string {
 }
 
 describe('walkMediaFiles', () => {
-  it('finds media files and skips working-folder bucket dirs', async () => {
+  it('finds media files and skips buckets only under the working folder', async () => {
     const root = mkdtempSync(join(tmpdir(), 'yaadein-walk-'))
     writeFileSync(join(root, 'a.jpg'), 'a')
     writeFileSync(join(root, 'notes.txt'), 'skip')
@@ -21,7 +21,7 @@ describe('walkMediaFiles', () => {
     mkdirSync(join(root, 'preserve', '2025', '01'), { recursive: true })
     writeFileSync(join(root, 'preserve', '2025', '01', 'kept.jpg'), 'kept')
 
-    const found = await walkMediaFiles([root])
+    const found = await walkMediaFiles([root], { workingRoot: root })
     expect(found.map((p) => p.slice(root.length + 1)).sort()).toEqual(['a.jpg', 'nested/b.png'])
   })
 
@@ -33,6 +33,39 @@ describe('walkMediaFiles', () => {
     const found = await walkMediaFiles([root])
     expect(found).toHaveLength(1)
     expect(found[0]?.endsWith('a.jpg')).toBe(true)
+  })
+
+  it('scans rejected/duplicate/preserve under a scan root that is not the working folder', async () => {
+    const scan = mkdtempSync(join(tmpdir(), 'yaadein-scan-root-'))
+    const work = mkdtempSync(join(tmpdir(), 'yaadein-work-root-'))
+    mkdirSync(join(scan, 'rejected', '2022', '03'), { recursive: true })
+    mkdirSync(join(scan, 'duplicate', '2022', '04'), { recursive: true })
+    mkdirSync(join(scan, 'preserve', '2022', '05'), { recursive: true })
+    mkdirSync(join(scan, 'vacation'), { recursive: true })
+    mkdirSync(join(work, 'rejected', '2022', '03'), { recursive: true })
+    writeFileSync(join(scan, 'rejected', '2022', '03', 'shot.jpg'), 'scan-rej')
+    writeFileSync(join(scan, 'duplicate', '2022', '04', 'dup.jpg'), 'scan-dup')
+    writeFileSync(join(scan, 'preserve', '2022', '05', 'keep.jpg'), 'scan-pre')
+    writeFileSync(join(scan, 'vacation', 'trip.jpg'), 'scan-trip')
+    writeFileSync(join(work, 'rejected', '2022', '03', 'other.jpg'), 'work-bytes')
+
+    const found = await walkMediaFiles([scan], { workingRoot: work })
+    expect(found.map((p) => p.slice(scan.length + 1)).sort()).toEqual([
+      'duplicate/2022/04/dup.jpg',
+      'preserve/2022/05/keep.jpg',
+      'rejected/2022/03/shot.jpg',
+      'vacation/trip.jpg',
+    ])
+  })
+
+  it('when scan root is the working folder, skips its preserve/duplicate/rejected buckets', async () => {
+    const work = mkdtempSync(join(tmpdir(), 'yaadein-work-as-scan-'))
+    mkdirSync(join(work, 'rejected', '2022', '01'), { recursive: true })
+    writeFileSync(join(work, 'loose.jpg'), 'loose')
+    writeFileSync(join(work, 'rejected', '2022', '01', 'in-bucket.jpg'), 'bucket')
+
+    const found = await walkMediaFiles([work], { workingRoot: work })
+    expect(found).toEqual([join(work, 'loose.jpg')])
   })
 })
 
@@ -83,6 +116,7 @@ describe('scanAndClassify', () => {
           contentHash: acceptedHash,
           fileSize: acceptedBytes.length,
           decision: 'ACCEPTED',
+          cloudStatus: 'SYNCED',
           decidedAt: '2026-01-01T00:00:00.000Z',
         })
       }
@@ -185,5 +219,39 @@ describe('scanAndClassify', () => {
         },
       ),
     ).rejects.toThrow(/Cosmos lookup failed/)
+  })
+
+  it('removes empty and junk-only folders under the scan root after moves', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'yaadein-scan-prune-'))
+    const work = mkdtempSync(join(tmpdir(), 'yaadein-work-prune-'))
+    const nested = join(root, 'vacation', 'day1')
+    mkdirSync(nested, { recursive: true })
+    const body = 'prune-me'
+    const hash = sha256(body)
+    writeFileSync(join(nested, 'shot.jpg'), body)
+    writeFileSync(join(nested, '.DS_Store'), 'mac')
+    writeFileSync(join(root, 'vacation', 'Thumbs.db'), 'win')
+
+    await scanAndClassify(
+      { scanRoots: [root], workingRoot: work },
+      {
+        requireSignedIn: () => undefined,
+        decisions: {
+          lookupByHashes: async () => [
+            {
+              id: hash,
+              userId: 'oid',
+              contentHash: hash,
+              fileSize: body.length,
+              decision: 'REJECTED',
+              decidedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ],
+        },
+      },
+    )
+
+    expect(existsSync(root)).toBe(true)
+    expect(existsSync(join(root, 'vacation'))).toBe(false)
   })
 })

@@ -1,5 +1,5 @@
 import { useEffect, useState, type WheelEvent } from 'react'
-import type { MediaPreview } from '@shared/reviewTypes'
+import { buildLocalMediaPreview } from '@shared/buildLocalMediaPreview'
 
 const MIN_ZOOM = 1
 const MAX_ZOOM = 6
@@ -14,18 +14,18 @@ export function nextZoom(current: number, direction: 'in' | 'out'): number {
 }
 
 type Props = {
-  preview: MediaPreview | null
   currentReviewPath: string | null
 }
 
-/** Zoomable image/video stage for Tinder-style review. */
-export function ReviewMediaStage({ preview, currentReviewPath }: Props) {
+/** Zoomable image/video stage for Tinder-style review (sync stream URL; no IPC flash). */
+export function ReviewMediaStage({ currentReviewPath }: Props) {
   const [zoom, setZoom] = useState(1)
-  const mediaSrc = preview?.streamUrl ?? preview?.dataUrl ?? null
+  const preview = currentReviewPath ? buildLocalMediaPreview(currentReviewPath) : null
+  const mediaSrc = preview?.streamUrl ?? null
 
   useEffect(() => {
     setZoom(1)
-  }, [preview?.sourcePath])
+  }, [currentReviewPath])
 
   function onWheel(event: WheelEvent<HTMLDivElement>): void {
     if (!mediaSrc || preview?.kind === 'unsupported') {
@@ -63,7 +63,7 @@ export function ReviewMediaStage({ preview, currentReviewPath }: Props) {
       >
         {preview?.kind === 'video' && mediaSrc ? (
           <video
-            key={preview.sourcePath}
+            key={currentReviewPath ?? 'none'}
             className="reviewMedia"
             src={mediaSrc}
             controls
@@ -73,10 +73,10 @@ export function ReviewMediaStage({ preview, currentReviewPath }: Props) {
           />
         ) : preview?.kind === 'image' && mediaSrc ? (
           <img
-            key={preview.sourcePath}
+            key={currentReviewPath ?? 'none'}
             className="reviewMedia"
             src={mediaSrc}
-            alt={preview.sourcePath}
+            alt={currentReviewPath ?? ''}
             style={{ transform: `scale(${zoom})` }}
             draggable={false}
           />

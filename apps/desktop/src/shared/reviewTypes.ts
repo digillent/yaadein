@@ -18,6 +18,16 @@ export type ReviewAcceptResult = {
   sourceMoved: true
 }
 
+/** Progress while accepting (Cosms + Blob upload + local move). */
+export type ReviewAcceptProgress = {
+  phase: 'preparing' | 'uploading' | 'moving'
+  sourcePath: string
+  bytesUploaded: number
+  bytesTotal: number
+  /** 0–100 when bytesTotal > 0; otherwise null. */
+  percent: number | null
+}
+
 export type MediaPreviewKind = 'image' | 'video' | 'unsupported'
 
 export type MediaPreview = {

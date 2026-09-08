@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import type { MediaInspection } from '../../shared/mediaTypes'
-import type { ReviewAcceptResult } from '../../shared/reviewTypes'
+import type { ReviewAcceptProgress, ReviewAcceptResult } from '../../shared/reviewTypes'
 import type { DecisionRepository } from '../cosmos/decisionRepository'
 import { acceptAndUploadMedia } from '../blob/acceptUploadPipeline'
 import type { BlobUploadStore } from '../blob/blobUploader'
@@ -18,8 +18,9 @@ export async function acceptUnknownMedia(args: {
   decisions: DecisionRepository
   blobs: BlobUploadStore
   moveFile?: typeof moveMediaIntoWorkingFolder
+  onProgress?: (progress: ReviewAcceptProgress) => void
 }): Promise<ReviewAcceptResult> {
-  const { inspection, userId, workingRoot, decisions, blobs } = args
+  const { inspection, userId, workingRoot, decisions, blobs, onProgress } = args
   const moveFile = args.moveFile ?? moveMediaIntoWorkingFolder
 
   if (!existsSync(inspection.sourcePath)) {
@@ -35,6 +36,7 @@ export async function acceptUnknownMedia(args: {
     userId,
     decisions,
     blobs,
+    onProgress,
   })
 
   if (uploaded.document.cloudStatus !== 'SYNCED') {
@@ -43,6 +45,14 @@ export async function acceptUnknownMedia(args: {
       { acceptUploadResult: { ...uploaded, sourceMoved: false as const } },
     )
   }
+
+  onProgress?.({
+    phase: 'moving',
+    sourcePath: inspection.sourcePath,
+    bytesUploaded: inspection.fileSize,
+    bytesTotal: inspection.fileSize,
+    percent: inspection.fileSize > 0 ? 100 : null,
+  })
 
   const moved = await moveFile({
     sourcePath: inspection.sourcePath,

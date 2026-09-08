@@ -8,6 +8,7 @@ import type {
 } from '../../shared/scanTypes'
 import { hashFileContent } from '../media/hashFile'
 import { moveMediaIntoWorkingFolder } from '../workingFolder'
+import { pruneEmptyDirTree } from '../workingFolder/pruneEmptyDirs'
 import { classifyExactDuplicate, peerCandidateSizes } from './exactDuplicates'
 import { walkMediaFiles } from './walkMediaFiles'
 
@@ -20,7 +21,7 @@ export type ScanDecisionLookup = {
 export type ScanClassifyDeps = {
   requireSignedIn: () => void
   decisions: ScanDecisionLookup
-  walk?: (roots: string[]) => Promise<string[]>
+  walk?: (roots: string[], options?: { workingRoot?: string }) => Promise<string[]>
   hashFile?: typeof hashFileContent
   moveFile?: typeof moveMediaIntoWorkingFolder
   batchSize?: number
@@ -63,7 +64,7 @@ export async function scanAndClassify(
   }
   emit(deps, progress)
 
-  const mediaPaths = await walk(scanRoots)
+  const mediaPaths = await walk(scanRoots, { workingRoot: request.workingRoot })
   progress.filesFound = mediaPaths.length
   emit(deps, progress)
 
@@ -148,6 +149,7 @@ export async function scanAndClassify(
         const classification = classifyExactDuplicate({
           contentHash: item.contentHash,
           cosmosDecision: known?.decision,
+          cosmosCloudStatus: known?.cloudStatus,
           seenHashes,
         })
 
@@ -213,6 +215,10 @@ export async function scanAndClassify(
   progress.phase = 'done'
   progress.currentPath = undefined
   emit(deps, progress)
+
+  for (const scanRoot of scanRoots) {
+    await pruneEmptyDirTree(scanRoot, { removeRoot: false })
+  }
 
   return {
     filesFound: progress.filesFound,

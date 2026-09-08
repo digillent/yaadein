@@ -132,6 +132,8 @@ describe('rejectPreserveMedia', () => {
     expect(existsSync(path)).toBe(false)
     expect(existsSync(result.destinationPath)).toBe(true)
     expect(result.destinationPath.includes('rejected')).toBe(true)
+    // Blob delete runs after Cosms+move (safer if earlier steps fail).
+    expect(blobs.deleteFile).toHaveBeenCalled()
     const stored = await store.readById('hash-preserve-rej-1', 'oid-1')
     expect(stored?.decision).toBe('REJECTED')
   })

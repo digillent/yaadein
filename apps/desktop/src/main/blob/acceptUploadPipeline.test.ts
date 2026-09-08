@@ -104,6 +104,44 @@ describe('acceptAndUploadMedia', () => {
     expect(blobs.uploadFile).toHaveBeenCalledOnce()
   })
 
+  it('emits preparing then uploading progress', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'yaadein-m6-prog-'))
+    const sourcePath = join(dir, 'sample.jpg')
+    writeFileSync(sourcePath, 'hello-bytes')
+
+    const store = createMemoryStore()
+    const decisions = new DecisionRepository(store, () => 'oid-1')
+    const blobs: BlobUploadStore = {
+      uploadFile: vi.fn(async ({ cloudObjectId, onProgress }) => {
+        onProgress?.(4)
+        onProgress?.(12)
+        return {
+          cloudObjectId,
+          blobUrl: `https://example.blob.core.windows.net/media/${cloudObjectId}`,
+        }
+      }),
+      downloadFile: vi.fn(),
+      deleteFile: vi.fn(),
+    }
+    const phases: string[] = []
+    const percents: Array<number | null> = []
+
+    await acceptAndUploadMedia({
+      inspection: sampleInspection(sourcePath),
+      userId: 'oid-1',
+      decisions,
+      blobs,
+      onProgress: (progress) => {
+        phases.push(progress.phase)
+        percents.push(progress.percent)
+      },
+    })
+
+    expect(phases[0]).toBe('preparing')
+    expect(phases).toContain('uploading')
+    expect(percents).toContain(100)
+  })
+
   it('marks FAILED on upload error and leaves source unmoved', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'yaadein-m6-fail-'))
     const sourcePath = join(dir, 'sample.jpg')
