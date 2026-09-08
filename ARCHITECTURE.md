@@ -52,10 +52,11 @@ apps/api/         # Not required for solo MVP (Functions postponed)
 
 ## Auth and Azure access
 
-- Public client + PKCE; tokens in main-process cache
+- Public client + PKCE; tokens in main-process cache; redirect `http://localhost`
 - Cosms and Blob data-plane access via **Azure RBAC on the signed-in user**
 - MSAL scopes include resource scopes for Cosms and Storage as needed (plus optional Graph for `/me`)
 - Never store Cosms/storage account keys in the app (including “encrypted” local files)
+- Operator setup (Entra app, Cosms container, Blob container, RBAC roles) is documented in [README.md](README.md) **Prerequisites**
 
 ## Domain sketch
 
