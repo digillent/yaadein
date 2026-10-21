@@ -767,11 +767,11 @@ export default function App() {
 
   if (screen === 'viewMedia') {
     return (
-      <main className="shell">
+      <main className="shell viewMediaShell">
         <header className="appHeader">
           <div>
             <h1>{title}</h1>
-            <p className="tagline">Cherish keepers in preserve/ — filter by tags (AND).</p>
+            <p className="tagline">Preview stays on the left. Browse by decade, year, and month.</p>
           </div>
           {statusBar}
         </header>
@@ -1015,7 +1015,7 @@ export default function App() {
           <div>
             <h1>{title}</h1>
             <p className="tagline">
-              ↑ accept · ↓ reject · ← prev · → next · scroll or buttons to zoom
+              ↑ accept · ↓ reject · ← prev · → next · scroll or buttons to zoom · double-click for full screen
             </p>
           </div>
           {statusBar}

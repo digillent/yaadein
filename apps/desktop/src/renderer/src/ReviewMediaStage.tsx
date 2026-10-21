@@ -1,5 +1,7 @@
 import { useEffect, useState, type WheelEvent } from 'react'
 import { buildLocalMediaPreview } from '@shared/buildLocalMediaPreview'
+import { FullscreenHost } from './FullscreenHost'
+import { LocalVideoPlayer } from './LocalVideoPlayer'
 
 const MIN_ZOOM = 1
 const MAX_ZOOM = 6
@@ -31,12 +33,16 @@ export function ReviewMediaStage({ currentReviewPath }: Props) {
     if (!mediaSrc || preview?.kind === 'unsupported') {
       return
     }
+    const target = event.target
+    if (target instanceof Element && target.closest('.videoPlayerControls')) {
+      return
+    }
     event.preventDefault()
     setZoom((current) => nextZoom(current, event.deltaY < 0 ? 'in' : 'out'))
   }
 
   return (
-    <>
+    <FullscreenHost disabled={!mediaSrc} className="reviewFrame">
       <div className="row reviewZoomRow">
         <button
           type="button"
@@ -62,15 +68,7 @@ export function ReviewMediaStage({ currentReviewPath }: Props) {
         onWheel={onWheel}
       >
         {preview?.kind === 'video' && mediaSrc ? (
-          <video
-            key={currentReviewPath ?? 'none'}
-            className="reviewMedia"
-            src={mediaSrc}
-            controls
-            autoPlay
-            playsInline
-            style={{ transform: `scale(${zoom})` }}
-          />
+          <LocalVideoPlayer src={mediaSrc} zoom={zoom} autoPlay layout="review" />
         ) : preview?.kind === 'image' && mediaSrc ? (
           <img
             key={currentReviewPath ?? 'none'}
@@ -86,6 +84,6 @@ export function ReviewMediaStage({ currentReviewPath }: Props) {
           <p className="hint">Nothing to review.</p>
         )}
       </div>
-    </>
+    </FullscreenHost>
   )
 }

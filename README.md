@@ -93,9 +93,13 @@ Public Entra/Cosmos/Blob values from `apps/desktop/.env` are **embedded at build
 
 ```bash
 # once: ensure apps/desktop/.env is filled (required keys must be non-empty)
-pnpm dist:mac    # → apps/desktop/release/Yaadein-Mac-*.dmg and *.zip (arm64 + x64)
-pnpm dist:win    # → apps/desktop/release/Yaadein-Windows-*-x64.zip
-pnpm dist        # mac + win targets
+./scripts/dist.sh          # mac on macOS, win on Windows
+./scripts/dist.sh mac      # → apps/desktop/release/Yaadein-Mac-*.dmg and *.zip (arm64 + x64)
+./scripts/dist.sh win      # → apps/desktop/release/Yaadein-Windows-*-x64.zip
+./scripts/dist.sh all      # mac + win targets
+pnpm dist:mac              # same Mac build without the script
+pnpm dist:win
+pnpm dist
 ```
 
 Also available: `pnpm --filter @yaadein/desktop dist:dir` (unpacked app only, faster smoke).

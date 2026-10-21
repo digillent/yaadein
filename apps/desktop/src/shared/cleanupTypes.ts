@@ -18,6 +18,11 @@ export type CleanupListResult = {
   totalBytes: number
 }
 
+/** True only when the caller explicitly skips the local-delete confirmation dialog. */
+export function cleanupDeleteSkipsConfirm(skipConfirm: unknown): boolean {
+  return skipConfirm === true
+}
+
 export type CleanupDeleteResult = {
   workingRoot: string
   bucket: CleanupBucket

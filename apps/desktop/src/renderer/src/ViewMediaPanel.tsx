@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CherishListResult, CherishMediaEntry, TagFilter } from '@shared/cherishTypes'
 import { buildLocalMediaPreview } from '@shared/buildLocalMediaPreview'
 import {
@@ -6,9 +6,24 @@ import {
   matchesAllTagFilters,
   tagFilterKey,
 } from '@shared/tagFilter'
+import {
+  adjacentInOrder,
+  cursorForDecade,
+  cursorForYear,
+  cursorForYearMonth,
+  defaultBrowseCursor,
+  flattenYearMonthGroups,
+  groupByDecade,
+  groupByYearMonth,
+  keepOrDefaultCursor,
+  monthItems,
+  shortMonthLabel,
+  type BrowseCursor,
+} from './cherishGroups'
 import { LazyMediaThumb } from './LazyMediaThumb'
-
-const GRID_PAGE_SIZE = 120
+import { columnCountFromTemplate, gridNeighborIndex, thumbArrowFromKey } from './thumbGridNav'
+import { FullscreenHost } from './FullscreenHost'
+import { LocalVideoPlayer } from './LocalVideoPlayer'
 
 type Props = {
   workingRoot: string
@@ -52,7 +67,9 @@ export function ViewMediaPanel({
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set())
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(() => new Set())
   const [focusPath, setFocusPath] = useState<string | null>(null)
-  const [visibleCount, setVisibleCount] = useState(GRID_PAGE_SIZE)
+  const [cursor, setCursor] = useState<BrowseCursor | null>(null)
+  const gridRef = useRef<HTMLDivElement | null>(null)
+  const keyboardNav = useRef(false)
 
   const availableFilters = useMemo(
     () => collectTagFilters(list?.files ?? []),
@@ -69,17 +86,99 @@ export function ViewMediaPanel({
     return files.filter((file) => matchesAllTagFilters(file.tags, selectedFilters))
   }, [list, selectedFilters])
 
+  const allGroups = useMemo(() => groupByYearMonth(visibleFiles), [visibleFiles])
+  const decades = useMemo(() => groupByDecade(allGroups), [allGroups])
+  const orderedFiles = useMemo(() => flattenYearMonthGroups(allGroups), [allGroups])
+  const activeDecade = decades.find((item) => item.decade === cursor?.decade) ?? null
+  const activeYear = activeDecade?.years.find((item) => item.year === cursor?.year) ?? null
+  const thumbFiles = monthItems(decades, cursor)
+
   useEffect(() => {
-    setVisibleCount(GRID_PAGE_SIZE)
-  }, [selectedFilters, list])
+    setCursor((current) => keepOrDefaultCursor(decades, current))
+  }, [decades])
 
-  const gridFiles = useMemo(
-    () => visibleFiles.slice(0, visibleCount),
-    [visibleFiles, visibleCount],
-  )
+  useEffect(() => {
+    if (thumbFiles.some((file) => file.absolutePath === focusPath)) {
+      return
+    }
+    setFocusPath(thumbFiles[0]?.absolutePath ?? null)
+  }, [thumbFiles, focusPath])
 
-  const focusEntry = visibleFiles.find((f) => f.absolutePath === focusPath) ?? null
+  useEffect(() => {
+    const card = document.querySelector('.cherishCardActive')
+    if (!(card instanceof HTMLElement)) {
+      return
+    }
+    card.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    if (!keyboardNav.current) {
+      return
+    }
+    keyboardNav.current = false
+    const opener = card.querySelector('.cherishCardOpen')
+    if (opener instanceof HTMLElement) {
+      opener.focus({ preventScroll: true })
+    }
+  }, [focusPath])
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if (document.fullscreenElement) {
+        return
+      }
+      const direction = thumbArrowFromKey(event.key)
+      if (!direction) {
+        return
+      }
+      const target = event.target
+      if (!(target instanceof Element) || !target.closest('.cherishBrowser')) {
+        return
+      }
+      if (target.closest('input, textarea, select')) {
+        return
+      }
+      const index = thumbFiles.findIndex((file) => file.absolutePath === focusPath)
+      if (index < 0) {
+        return
+      }
+      const columns = columnCountFromTemplate(
+        gridRef.current ? getComputedStyle(gridRef.current).gridTemplateColumns : null,
+      )
+      const next = gridNeighborIndex(index, thumbFiles.length, columns, direction)
+      event.preventDefault()
+      if (next == null) {
+        return
+      }
+      keyboardNav.current = true
+      setFocusPath(thumbFiles[next]?.absolutePath ?? null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [thumbFiles, focusPath])
+
+  const focusEntry = orderedFiles.find((f) => f.absolutePath === focusPath) ?? null
+  const focusIndex = focusEntry
+    ? orderedFiles.findIndex((f) => f.absolutePath === focusEntry.absolutePath)
+    : -1
   const focusPreview = focusEntry ? buildLocalMediaPreview(focusEntry.absolutePath) : null
+
+  function chooseCursor(next: BrowseCursor | null): void {
+    setCursor(next ?? defaultBrowseCursor(decades))
+  }
+
+  function stepFocus(direction: 'prev' | 'next'): void {
+    if (busy || !focusPath) {
+      return
+    }
+    const next = adjacentInOrder(orderedFiles, focusPath, direction)
+    if (!next) {
+      return
+    }
+    setFocusPath(next.absolutePath)
+    const nextCursor = cursorForYearMonth(decades, next.yearMonth)
+    if (nextCursor) {
+      setCursor(nextCursor)
+    }
+  }
 
   async function refreshList(): Promise<void> {
     await onBusy(async () => {
@@ -89,7 +188,7 @@ export function ViewMediaPanel({
         setSelectedKeys(new Set())
         setSelectedPaths(new Set())
         setFocusPath(null)
-        setVisibleCount(GRID_PAGE_SIZE)
+        setCursor(null)
         const tagged = next.files.filter((f) => f.hasCosmosAccepted).length
         const extras = next.files.reduce((sum, f) => sum + Math.max(0, f.localCopyCount - 1), 0)
         onStatus(
@@ -214,11 +313,10 @@ export function ViewMediaPanel({
         </button>
       </div>
 
-      <p className="hint">
-        Previewable media under {workingRoot}/preserve/ only (skips .DS_Store and other non-media).
-        One tile per exact content hash (SHA-256); extra local copies of the same bytes are noted,
-        not shown as separate tiles. Multi-select tags use <strong>AND</strong>. Reject writes Cosms
-        REJECTED, moves to rejected/, then deletes the Blob.
+      <p className="hint cherishHint">
+        Pick a decade, year, and month. The preview stays put while thumbnails scroll on their own.
+        In the thumbnail pane, arrow keys move to a neighbor when there is one. In full screen, ← and →
+        move through the library. Tags use <strong>AND</strong>.
       </p>
 
       <div className="cherishFilters" aria-label="Tag filters">
@@ -264,109 +362,178 @@ export function ViewMediaPanel({
         ) : null}
       </div>
 
-      <p className="status" role="status">
-        Showing {gridFiles.length} of {visibleFiles.length} match
-        {list ? ` (${list.files.length} unique in preserve/)` : ''}
-        {selectedFilters.length > 0
-          ? ` · AND ${selectedFilters.map(tagFilterKey).join(', ')}`
-          : ''}
-      </p>
+      <div className="cherishWorkspace">
+        <div className="cherishPreview" aria-label="Preview">
+          {focusEntry ? (
+            <>
+              <div className="row">
+                <button
+                  type="button"
+                  disabled={busy || focusIndex <= 0}
+                  onClick={() => stepFocus('prev')}
+                >
+                  ← Prev
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || focusIndex < 0 || focusIndex >= orderedFiles.length - 1}
+                  onClick={() => stepFocus('next')}
+                >
+                  Next →
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || !signedIn}
+                  onClick={() => void rejectPaths([focusEntry.absolutePath])}
+                >
+                  Reject this
+                </button>
+              </div>
+              <FullscreenHost disabled={!focusPreview?.streamUrl} onArrow={stepFocus}>
+                <div className="cherishFocusStage">
+                  {focusPreview?.kind === 'video' && focusPreview.streamUrl ? (
+                    <LocalVideoPlayer src={focusPreview.streamUrl} autoPlay layout="focus" />
+                  ) : focusPreview?.kind === 'image' && focusPreview.streamUrl ? (
+                    <img
+                      src={focusPreview.streamUrl}
+                      alt={focusEntry.originalFilename}
+                      className="cherishFocusMedia"
+                    />
+                  ) : (
+                    <p className="hint">No preview</p>
+                  )}
+                </div>
+                <p className="cherishFullscreenMeta">
+                  {focusIndex + 1} / {orderedFiles.length} · {focusEntry.originalFilename} · ←
+                  previous · → next
+                </p>
+              </FullscreenHost>
+              <p className="cherishName">{focusEntry.relativePath}</p>
+              <p className="hint">{formatTags(focusEntry)}</p>
+              {formatCopyNote(focusEntry) ? (
+                <p className="hint cherishCopyNote">{formatCopyNote(focusEntry)}</p>
+              ) : null}
+            </>
+          ) : (
+            <p className="hint">
+              {list && list.files.length > 0
+                ? 'No keepers match the selected tags.'
+                : `No previewable media under ${workingRoot}/preserve/.`}
+            </p>
+          )}
+        </div>
 
-      {focusEntry ? (
-        <div className="cherishFocus" aria-label="Focused media">
-          <div className="row">
-            <button type="button" disabled={busy} onClick={() => setFocusPath(null)}>
-              Close preview
-            </button>
-            <button
-              type="button"
-              disabled={busy || !signedIn}
-              onClick={() => void rejectPaths([focusEntry.absolutePath])}
-            >
-              Reject this
-            </button>
+        <div className="cherishBrowser">
+          <div className="cherishBrowseBar">
+            <div className="cherishBrowseRow" role="toolbar" aria-label="Decades">
+              {decades.map((decade) => (
+                <button
+                  key={decade.decade}
+                  type="button"
+                  aria-pressed={decade.decade === cursor?.decade}
+                  disabled={busy}
+                  onClick={() => chooseCursor(cursorForDecade(decades, decade.decade))}
+                >
+                  {decade.decade}
+                </button>
+              ))}
+            </div>
+            {activeDecade ? (
+              <div className="cherishBrowseRow" role="toolbar" aria-label="Years">
+                {activeDecade.years.map((year) => (
+                  <button
+                    key={year.year}
+                    type="button"
+                    aria-pressed={year.year === cursor?.year}
+                    disabled={busy}
+                    onClick={() => chooseCursor(cursorForYear(decades, year.year))}
+                  >
+                    {year.year}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {activeYear ? (
+              <div className="cherishBrowseRow" role="toolbar" aria-label="Months">
+                {activeYear.months.map((month) => (
+                  <button
+                    key={month.yearMonth ?? 'undated'}
+                    type="button"
+                    aria-pressed={(month.yearMonth ?? null) === (cursor?.yearMonth ?? null)}
+                    disabled={busy}
+                    onClick={() =>
+                      chooseCursor({
+                        decade: activeDecade?.decade ?? cursor?.decade ?? '',
+                        year: activeYear.year,
+                        yearMonth: month.yearMonth,
+                      })
+                    }
+                  >
+                    {shortMonthLabel(month.yearMonth)}
+                    <span className="cherishJumpCount"> {month.items.length}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <p className="status" role="status">
+              {thumbFiles.length} in this month
+              {list ? ` · ${visibleFiles.length} shown` : ''}
+              {selectedFilters.length > 0
+                ? ` · AND ${selectedFilters.map(tagFilterKey).join(', ')}`
+                : ''}
+            </p>
           </div>
-          <div className="cherishFocusStage">
-            {focusPreview?.kind === 'video' && focusPreview.streamUrl ? (
-              <video
-                src={focusPreview.streamUrl}
-                controls
-                playsInline
-                className="cherishFocusMedia"
-              />
-            ) : focusPreview?.kind === 'image' && focusPreview.streamUrl ? (
-              <img
-                src={focusPreview.streamUrl}
-                alt={focusEntry.originalFilename}
-                className="cherishFocusMedia"
-              />
+          <div className="cherishThumbs">
+            {thumbFiles.length > 0 ? (
+              <div className="cherishGrid" ref={gridRef}>
+                {thumbFiles.map((file) => {
+                  const checked = selectedPaths.has(file.absolutePath)
+                  const active = file.absolutePath === focusPath
+                  return (
+                    <div
+                      key={file.absolutePath}
+                      className={`cherishCard${active ? ' cherishCardActive' : ''}`}
+                    >
+                      <label className="cherishSelect">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={busy}
+                          onChange={() => toggleSelected(file.absolutePath)}
+                        />
+                        Select
+                      </label>
+                      <button
+                        type="button"
+                        className="cherishCardOpen"
+                        disabled={busy}
+                        onClick={() => setFocusPath(file.absolutePath)}
+                      >
+                        <LazyMediaThumb
+                          absolutePath={file.absolutePath}
+                          alt={file.originalFilename}
+                          className="cherishThumb"
+                        />
+                        <p className="cherishName">{file.originalFilename}</p>
+                        <p className="hint cherishTagLine">{formatTags(file)}</p>
+                        {file.localCopyCount > 1 ? (
+                          <p className="hint cherishCopyNote">{file.localCopyCount}× same hash</p>
+                        ) : null}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
             ) : (
-              <p className="hint">No preview</p>
+              <p className="hint">
+                {list && list.files.length > 0
+                  ? 'No keepers match the selected tags.'
+                  : `No previewable media under ${workingRoot}/preserve/. Accept media in review or run restore.`}
+              </p>
             )}
           </div>
-          <p className="cherishName">{focusEntry.relativePath}</p>
-          <p className="hint">{formatTags(focusEntry)}</p>
-          {formatCopyNote(focusEntry) ? (
-            <p className="hint cherishCopyNote">{formatCopyNote(focusEntry)}</p>
-          ) : null}
         </div>
-      ) : null}
-
-      <div className="cherishGrid">
-        {gridFiles.map((file) => {
-          const checked = selectedPaths.has(file.absolutePath)
-          return (
-            <div key={file.absolutePath} className="cherishCard">
-              <label className="cherishSelect">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={busy}
-                  onChange={() => toggleSelected(file.absolutePath)}
-                />
-                Select
-              </label>
-              <button
-                type="button"
-                className="cherishCardOpen"
-                disabled={busy}
-                onClick={() => setFocusPath(file.absolutePath)}
-              >
-                <LazyMediaThumb
-                  absolutePath={file.absolutePath}
-                  alt={file.originalFilename}
-                  className="cherishThumb"
-                />
-                <p className="cherishName">{file.originalFilename}</p>
-                <p className="hint cherishTagLine">{formatTags(file)}</p>
-                {file.localCopyCount > 1 ? (
-                  <p className="hint cherishCopyNote">{file.localCopyCount}× same hash</p>
-                ) : null}
-              </button>
-            </div>
-          )
-        })}
       </div>
-
-      {visibleFiles.length > gridFiles.length ? (
-        <div className="row">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => setVisibleCount((n) => n + GRID_PAGE_SIZE)}
-          >
-            Show more ({visibleFiles.length - gridFiles.length} remaining)
-          </button>
-        </div>
-      ) : null}
-
-      {visibleFiles.length === 0 ? (
-        <p className="hint">
-          {list && list.files.length > 0
-            ? 'No keepers match the selected tags.'
-            : `No previewable media under ${workingRoot}/preserve/. Accept media in review or run restore.`}
-        </p>
-      ) : null}
     </section>
   )
 }

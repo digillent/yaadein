@@ -3,6 +3,8 @@ import type { CleanupFileEntry } from '@shared/cleanupTypes'
 import type { DuplicateComparePair } from '@shared/duplicateTypes'
 import { buildLocalMediaPreview } from '@shared/buildLocalMediaPreview'
 import { duplicateActionFromKey } from './duplicateKeys'
+import { FullscreenHost } from './FullscreenHost'
+import { LocalVideoPlayer } from './LocalVideoPlayer'
 
 type Props = {
   workingRoot: string
@@ -26,15 +28,17 @@ function PreviewPane({
   return (
     <div className="dupPane">
       <h3>{label}</h3>
-      <div className="dupStage">
-        {preview?.kind === 'video' && src ? (
-          <video src={src} controls playsInline className="dupMedia" />
-        ) : preview?.kind === 'image' && src ? (
-          <img src={src} alt={path ?? label} className="dupMedia" />
-        ) : (
-          <p className="hint">{path ? 'No preview' : 'Unavailable'}</p>
-        )}
-      </div>
+      <FullscreenHost disabled={!src || preview?.kind === 'unsupported'}>
+        <div className="dupStage">
+          {preview?.kind === 'video' && src ? (
+            <LocalVideoPlayer src={src} layout="compare" />
+          ) : preview?.kind === 'image' && src ? (
+            <img src={src} alt={path ?? label} className="dupMedia" />
+          ) : (
+            <p className="hint">{path ? 'No preview' : 'Unavailable'}</p>
+          )}
+        </div>
+      </FullscreenHost>
       <p className="dupPath" title={path ?? undefined}>
         {path ?? '—'}
       </p>
@@ -129,6 +133,7 @@ export function DuplicateComparePanel({
           workingRoot,
           bucket: 'duplicate',
           paths: [current.absolutePath],
+          skipConfirm: true,
         })
         if (result.cancelled) {
           onStatus('Delete cancelled.')

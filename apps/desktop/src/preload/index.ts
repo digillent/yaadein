@@ -146,6 +146,8 @@ const api = {
     workingRoot: string
     bucket: CleanupBucket
     paths: string[]
+    /** Duplicate compare sets this so ↓ deletes the current file without a dialog. */
+    skipConfirm?: boolean
   }): Promise<CleanupDeleteResult> => ipcRenderer.invoke('cleanup:delete', payload),
   runRestore: (payload: { workingRoot: string }): Promise<RestorePreserveResult> =>
     ipcRenderer.invoke('restore:run', payload),

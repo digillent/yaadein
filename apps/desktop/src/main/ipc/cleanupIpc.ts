@@ -4,7 +4,12 @@ import {
   deleteCleanupFiles,
   listCleanupFiles,
 } from '../workingFolder/cleanupLocal'
-import type { CleanupBucket, CleanupDeleteResult, CleanupListResult } from '../../shared/cleanupTypes'
+import {
+  cleanupDeleteSkipsConfirm,
+  type CleanupBucket,
+  type CleanupDeleteResult,
+  type CleanupListResult,
+} from '../../shared/cleanupTypes'
 
 const CHANNELS = {
   list: 'cleanup:list',
@@ -30,7 +35,7 @@ export function registerCleanupIpc(): void {
     CHANNELS.delete,
     async (
       event,
-      payload: { workingRoot?: unknown; bucket?: unknown; paths?: unknown },
+      payload: { workingRoot?: unknown; bucket?: unknown; paths?: unknown; skipConfirm?: unknown },
     ): Promise<CleanupDeleteResult> => {
       if (typeof payload?.workingRoot !== 'string' || !payload.workingRoot.trim()) {
         throw new Error('workingRoot is required')
@@ -53,25 +58,27 @@ export function registerCleanupIpc(): void {
         }
       }
 
-      const parent = BrowserWindow.fromWebContents(event.sender)
-      const confirmation = await dialog.showMessageBox(parent ?? undefined, {
-        type: 'warning',
-        buttons: ['Cancel', 'Delete permanently'],
-        defaultId: 0,
-        cancelId: 0,
-        title: 'Confirm local cleanup',
-        message: `Permanently delete ${paths.length} file(s) from ${payload.bucket}/?`,
-        detail:
-          'This only removes local files under rejected/ or duplicate/. Cosmos decisions are kept. preserve/ is never touched.',
-      })
+      if (!cleanupDeleteSkipsConfirm(payload.skipConfirm)) {
+        const parent = BrowserWindow.fromWebContents(event.sender)
+        const confirmation = await dialog.showMessageBox(parent ?? undefined, {
+          type: 'warning',
+          buttons: ['Cancel', 'Delete permanently'],
+          defaultId: 0,
+          cancelId: 0,
+          title: 'Confirm local cleanup',
+          message: `Permanently delete ${paths.length} file(s) from ${payload.bucket}/?`,
+          detail:
+            'This only removes local files under rejected/ or duplicate/. Cosmos decisions are kept. preserve/ is never touched.',
+        })
 
-      if (confirmation.response !== 1) {
-        return {
-          workingRoot: payload.workingRoot,
-          bucket: payload.bucket as CleanupBucket,
-          deleted: [],
-          failed: [],
-          cancelled: true,
+        if (confirmation.response !== 1) {
+          return {
+            workingRoot: payload.workingRoot,
+            bucket: payload.bucket as CleanupBucket,
+            deleted: [],
+            failed: [],
+            cancelled: true,
+          }
         }
       }
 

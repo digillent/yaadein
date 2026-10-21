@@ -29,6 +29,28 @@ body,
   padding: 2rem clamp(1.5rem, 4vw, 4rem) 3rem;
 }
 
+.viewMediaShell {
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  padding-top: 1rem;
+  padding-bottom: 0.75rem;
+}
+
+.viewMediaShell h1 {
+  font-size: 2rem;
+}
+
+.viewMediaShell .appHeader {
+  flex-shrink: 0;
+  gap: 0.45rem;
+  margin-bottom: 0.25rem;
+}
+
+.viewMediaShell .tagline {
+  margin-top: 0.15rem;
+}
+
 .appHeader {
   display: flex;
   flex-direction: column;
@@ -171,6 +193,149 @@ button.primaryAction:hover:not(:disabled) {
   transition: transform 0.08s ease-out;
 }
 
+.mediaFullscreenBar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.35rem;
+}
+
+.mediaFullscreenTarget:fullscreen {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0.75rem 1rem 1rem;
+  background: #0c0a09;
+  overflow: hidden;
+}
+
+.mediaFullscreenTarget:fullscreen .reviewStage,
+.mediaFullscreenTarget:fullscreen .cherishFocusStage,
+.mediaFullscreenTarget:fullscreen .dupStage {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-height: none;
+  background: transparent;
+  border: none;
+  overflow: hidden;
+}
+
+.mediaFullscreenTarget:fullscreen .videoPlayer {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+}
+
+.mediaFullscreenTarget:fullscreen .videoPlayerFrame {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mediaFullscreenTarget:fullscreen .reviewMedia,
+.mediaFullscreenTarget:fullscreen .cherishFocusMedia,
+.mediaFullscreenTarget:fullscreen .dupMedia {
+  width: auto;
+  height: auto;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100vh - 8.5rem);
+  object-fit: contain;
+}
+
+.mediaFullscreenTarget:fullscreen .videoPlayerMedia {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.mediaFullscreenTarget:fullscreen .reviewZoomLabel,
+.mediaFullscreenTarget:fullscreen .videoPlayerTime,
+.mediaFullscreenTarget:fullscreen .cherishFullscreenMeta {
+  color: #e7e5e4;
+}
+
+.cherishFullscreenMeta {
+  display: none;
+  margin: 0.35rem 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.mediaFullscreenTarget:fullscreen .cherishFullscreenMeta {
+  display: block;
+}
+
+.mediaFullscreenTarget:fullscreen .cherishFocusMedia {
+  max-height: calc(100vh - 10rem);
+}
+
+.videoPlayer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.videoPlayerFrame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  overflow: auto;
+}
+
+.videoPlayerMedia {
+  width: 100%;
+  background: #1c1917;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
+.videoPlayer-review .videoPlayerMedia {
+  max-height: min(48vh, 420px);
+}
+
+.videoPlayer-focus .videoPlayerMedia {
+  max-height: 22rem;
+}
+
+.videoPlayer-compare .videoPlayerMedia {
+  max-height: 16rem;
+}
+
+.videoPlayerControls {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+.videoPlayerControls button {
+  flex: none;
+  padding: 0.3rem 0.65rem;
+}
+
+.videoPlayerSeek {
+  flex: 1;
+  min-width: 4rem;
+  accent-color: #44403c;
+}
+
+.videoPlayerTime {
+  flex: none;
+  min-width: 6.5rem;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: #57534e;
+}
+
 .reviewZoomRow {
   margin-bottom: 0.35rem;
 }
@@ -302,6 +467,103 @@ button.primaryAction:hover:not(:disabled) {
   max-width: 64rem;
 }
 
+.viewMediaShell .cherishLibrary {
+  flex: 1;
+  min-height: 0;
+  max-width: none;
+  margin-top: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.viewMediaShell .cherishLibrary > .row {
+  flex-shrink: 0;
+}
+
+.viewMediaShell .cherishHint {
+  flex-shrink: 0;
+  margin-bottom: 0.35rem;
+}
+
+.viewMediaShell .cherishFilters {
+  flex-shrink: 0;
+  max-height: 6.5rem;
+  overflow: auto;
+  margin-top: 0.25rem;
+  padding: 0.4rem 0;
+}
+
+.cherishWorkspace {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.95fr) minmax(0, 1.25fr);
+  gap: 0.85rem;
+  margin-top: 0.45rem;
+}
+
+.cherishPreview {
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 0.7rem;
+  border: 1px solid #d6d3d1;
+  border-radius: 10px;
+  background: #fafaf9;
+}
+
+.cherishBrowser {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #d6d3d1;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.cherishBrowseBar {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.55rem 0.7rem 0.45rem;
+  border-bottom: 1px solid #e7e5e4;
+}
+
+.cherishBrowseRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.cherishBrowseRow button {
+  padding: 0.28rem 0.55rem;
+}
+
+.cherishBrowseRow button[aria-pressed='true'] {
+  background: #1c1917;
+  color: #fafaf9;
+  border-color: #1c1917;
+}
+
+.cherishThumbs {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.55rem 0.7rem 0.85rem;
+}
+
+@media (max-width: 860px) {
+  .cherishWorkspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(14rem, 36vh) minmax(0, 1fr);
+  }
+}
+
 .cherishFilters {
   display: flex;
   flex-direction: column;
@@ -333,11 +595,19 @@ button.primaryAction:hover:not(:disabled) {
   color: #57534e;
 }
 
+.cherishJumpCount {
+  color: #78716c;
+}
+
+.cherishBrowseRow button[aria-pressed='true'] .cherishJumpCount {
+  color: #d6d3d1;
+}
+
 .cherishGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
   gap: 0.85rem;
-  margin-top: 1rem;
+  margin-top: 0.45rem;
 }
 
 .cherishCard {
@@ -351,6 +621,11 @@ button.primaryAction:hover:not(:disabled) {
   border-radius: 8px;
   content-visibility: auto;
   contain-intrinsic-size: auto 12rem;
+}
+
+.cherishCardActive {
+  border-color: #1c1917;
+  box-shadow: 0 0 0 1px #1c1917;
 }
 
 .cherishCardOpen {
