@@ -80,7 +80,8 @@ Implementation follows [ROADMAP.md](ROADMAP.md). **MVP milestones M1–M12 compl
 
 ```bash
 pnpm install
-pnpm dev          # run Electron app (loads apps/desktop/.env at runtime)
+./scripts/run.sh  # install if needed, then run Electron (loads apps/desktop/.env)
+pnpm dev          # same run without the script
 pnpm test
 pnpm lint
 ```
